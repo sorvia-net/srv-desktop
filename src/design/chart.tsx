@@ -48,8 +48,8 @@ export function LineChart({ series, labels, height = 190, format = (value: numbe
       <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full overflow-visible" onMouseLeave={() => setHover(null)}>
         <defs>
           <linearGradient id={`${id}-fade`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#ff7a1a" stopOpacity="0.28" />
-            <stop offset="1" stopColor="#ff7a1a" stopOpacity="0" />
+            <stop offset="0" stopColor="var(--color-accent)" stopOpacity="0.28" />
+            <stop offset="1" stopColor="var(--color-accent)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {lead && paths[0]?.solid && (

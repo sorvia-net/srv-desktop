@@ -1,6 +1,6 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, session, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, session, shell, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -8,12 +8,14 @@ import type { Preferences } from "../shared/contracts";
 import { request } from "./api";
 import { auth } from "./auth";
 import { badgeImage } from "./badge";
-import { APP_ORIGIN, DEV_URL, IS_DEV } from "./config";
+import { APP_ORIGIN, DEV_URL, IS_DEV, SERVER, userAgent } from "./config";
 import { mail } from "./mail";
 import { createNotifier, toast } from "./notifier";
 import { files } from "./files";
 import { store } from "./store";
+import { resolveShortcuts, toAccelerator } from "../shared/shortcuts";
 import { checkUpdate } from "./updates";
+import { updater } from "./updater";
 
 const DIST = resolve(__dirname, "../dist");
 const ASSETS = IS_DEV ? resolve(__dirname, "../public") : DIST;
@@ -102,7 +104,33 @@ function openSafe(url: unknown) {
   }
 }
 
+const WEB_HOSTS = /(^|\.)(sorvia\.net|sorvia\.dev|sorvia\.store)$/;
+
+function webAllowed(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && WEB_HOSTS.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function hardenGuest(contents: WebContents) {
+  contents.on("will-navigate", (event, url) => {
+    if (!webAllowed(url)) {
+      event.preventDefault();
+      openSafe(url);
+    }
+  });
+  contents.setWindowOpenHandler(({ url }) => {
+    if (webAllowed(url)) void contents.loadURL(url);
+    else openSafe(url);
+    return { action: "deny" };
+  });
+}
+
 function harden(contents: WebContents) {
+  if (contents.getType() === "webview") return hardenGuest(contents);
   contents.on("will-navigate", (event, url) => {
     if (!isAppUrl(url)) event.preventDefault();
   });
@@ -112,7 +140,15 @@ function harden(contents: WebContents) {
   contents.on("will-frame-navigate", (event) => {
     if (!event.isMainFrame && !event.url.startsWith("about:")) event.preventDefault();
   });
-  contents.on("will-attach-webview", (event) => event.preventDefault());
+  contents.on("will-attach-webview", (event, preferences, params) => {
+    if (!webAllowed(params.src ?? "")) return event.preventDefault();
+    delete preferences.preload;
+    preferences.nodeIntegration = false;
+    preferences.contextIsolation = true;
+    preferences.sandbox = true;
+    preferences.webSecurity = true;
+    preferences.partition = "persist:sorvia-web";
+  });
   contents.setWindowOpenHandler(({ url }) => {
     openSafe(url);
     return { action: "deny" };
@@ -137,6 +173,7 @@ function createWindow() {
       nodeIntegration: false,
       webSecurity: true,
       spellcheck: false,
+      webviewTag: true,
       devTools: IS_DEV,
       backgroundThrottling: false,
       navigateOnDragDrop: false,
@@ -221,7 +258,78 @@ const notifier = createNotifier({
   },
 });
 
+let globalCombo = "";
+
+function registerGlobal(prefs: Preferences) {
+  const combo = resolveShortcuts(prefs.shortcuts).global;
+  if (combo === globalCombo) return;
+  if (globalCombo) globalShortcut.unregister(toAccelerator(globalCombo));
+  globalCombo = combo;
+  if (!combo) return;
+  try {
+    globalShortcut.register(toAccelerator(combo), () => {
+      if (win?.isVisible() && win.isFocused()) send("system:command", "palette");
+      else command("palette");
+    });
+  } catch {
+    globalCombo = "";
+  }
+}
+
+const wallpaperFile = () => join(app.getPath("userData"), "wallpaper.jpg");
+
+function wallpaperImage() {
+  const file = wallpaperFile();
+  return existsSync(file) ? `data:image/jpeg;base64,${readFileSync(file).toString("base64")}` : null;
+}
+
+async function pickImage(extensions: string[]) {
+  const options = { properties: ["openFile" as const], filters: [{ name: "Görseller", extensions }] };
+  const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths[0]) return null;
+  const picture = nativeImage.createFromPath(result.filePaths[0]);
+  return picture.isEmpty() ? "invalid" : picture;
+}
+
+async function pickWallpaper() {
+  const picked = await pickImage(["png", "jpg", "jpeg", "webp", "bmp"]);
+  if (!picked || picked === "invalid") return null;
+  const picture = picked.getSize().width > 2560 ? picked.resize({ width: 2560, quality: "best" }) : picked;
+  writeFileSync(wallpaperFile(), picture.toJPEG(86));
+  applyPrefs(store.setPrefs({ wallpaper: "custom" }), true);
+  return wallpaperImage();
+}
+
+async function avatarRequest(method: "PUT" | "DELETE", body?: Buffer) {
+  const token = auth.token();
+  if (!token) return { ok: false as const, status: 401, error: "unauthorized", message: "Oturum açık değil." };
+  try {
+    const response = await net.fetch(`${SERVER}/api/desktop/me/avatar`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, "User-Agent": userAgent(), "X-Sorvia-Client": "desktop", ...(body ? { "Content-Type": "application/octet-stream" } : {}) },
+      body: body ? new Uint8Array(body) : undefined,
+    });
+    const payload = (await response.json().catch(() => ({}))) as { user?: unknown; message?: string };
+    if (!response.ok) return { ok: false as const, status: response.status, error: "avatar", message: payload.message ?? "Fotoğraf güncellenemedi." };
+    await auth.refresh();
+    return { ok: true as const, data: (payload.user ?? null) as never };
+  } catch {
+    return { ok: false as const, status: 0, error: "network", message: "Sorvia'ya ulaşılamadı." };
+  }
+}
+
+async function pickAvatar() {
+  const picture = await pickImage(["png", "jpg", "jpeg", "webp", "gif"]);
+  if (!picture) return null;
+  if (picture === "invalid") return { ok: false as const, status: 400, error: "invalid", message: "Görsel okunamadı." };
+  const size = picture.getSize();
+  const side = Math.min(size.width, size.height);
+  const square = picture.crop({ x: Math.floor((size.width - side) / 2), y: Math.floor((size.height - side) / 2), width: side, height: side }).resize({ width: 512, height: 512, quality: "best" });
+  return avatarRequest("PUT", square.toJPEG(88));
+}
+
 function applyPrefs(prefs: Preferences, broadcast = false) {
+  registerGlobal(prefs);
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: prefs.launchAtLogin, args: ["--hidden"] });
   notifier.restart();
   refreshTray();
@@ -296,8 +404,10 @@ function registerIpc() {
   handle("api:send", (method, path, body) => request(method, path, undefined, body));
 
   handle("mail:account", () => mail.info());
+  handle("mail:accounts", () => mail.accounts());
+  handle("mail:switchAccount", (id) => mail.switchAccount(id));
   handle("mail:connect", (input) => mail.connect(input));
-  handle("mail:disconnect", () => mail.disconnect());
+  handle("mail:disconnect", (id) => mail.disconnect(id));
   handle("mail:folders", () => mail.folders());
   handle("mail:list", (folder, page) => mail.list(folder, page));
   handle("mail:read", (folder, uid) => mail.read(folder, uid));
@@ -312,6 +422,12 @@ function registerIpc() {
 
   handle("system:openExternal", (url) => openSafe(url));
   handle("system:checkUpdate", () => checkUpdate());
+  handle("system:pickWallpaper", () => pickWallpaper());
+  handle("system:wallpaperImage", () => wallpaperImage());
+  on("system:installUpdate", () => updater.install());
+  handle("system:updateReady", () => updater.readyVersion());
+  handle("account:pickAvatar", () => pickAvatar());
+  handle("account:removeAvatar", () => avatarRequest("DELETE"));
   on("system:notify", (title, body) => {
     if (typeof title === "string" && store.prefs().nativeNotifications && !store.prefs().doNotDisturb) toast({ open: command, icon: () => image("icon.png") }, title.slice(0, 120), typeof body === "string" ? body : "", null);
   });
@@ -359,7 +475,7 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on("window-all-closed", () => app.quit());
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     registerProtocol();
     hardenSession();
     registerIpc();
@@ -376,7 +492,7 @@ if (!app.requestSingleInstanceLock()) {
     auth.onSignedOut((reason) => {
       notifier.stop();
       store.setLastNotificationAt(null);
-      void (reason === "logout" ? mail.disconnect() : mail.stop());
+      void (reason === "logout" ? mail.disconnectAll() : mail.stop());
       setBadge(0);
     });
     mail.onNew((items) => {
@@ -387,21 +503,24 @@ if (!app.requestSingleInstanceLock()) {
       if (win && !win.isFocused()) win.flashFrame(true);
     });
 
+    auth.restore();
+    if (!startHidden && !(await updater.startup(asset("icon.png")))) return;
+    updater.onReady((version) => {
+      send("system:updateReady", version);
+      toast({ open: command, icon: () => image("icon.png") }, `Sorvia Desktop ${version} hazır`, "Yeniden başlattığında güncelleme kurulacak.", null);
+    });
+
     createWindow();
     createTray();
-    globalShortcut.register("Control+Shift+Space", () => {
-      if (win?.isVisible() && win.isFocused()) send("system:command", "palette");
-      else command("palette");
-    });
     applyPrefs(store.prefs());
-    auth.restore();
 
     powerMonitor.on("resume", () => {
       void auth.refresh();
       mail.resume();
       notifier.restart();
     });
-    setTimeout(() => void announceUpdate(), 20_000);
-    setInterval(() => void announceUpdate(), 6 * 60 * 60 * 1000);
+    const periodic = () => void (app.isPackaged ? updater.background() : announceUpdate());
+    setTimeout(periodic, startHidden ? 30_000 : 4 * 60 * 60 * 1000);
+    setInterval(periodic, 4 * 60 * 60 * 1000);
   });
 }

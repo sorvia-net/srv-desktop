@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Yayınlanacak sürüm etiketi (ör. v0.3.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Sürümü etiketten al
+        shell: bash
+        run: |
+          VERSION="${TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "Etiket vX.Y.Z olmalı: $TAG"; exit 1; fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist
+
+      - name: Dosyaları GitHub sürümüne ekle
+        shell: bash
+        run: |
+          cd release
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Sorvia Desktop $VERSION" --notes "Sorvia Desktop $VERSION"
+          gh release upload "$TAG" "Sorvia-Desktop-Kurulum-$VERSION.exe" "Sorvia-Desktop-Kurulum-$VERSION.exe.blockmap" latest.yml --clobber
+
+      - name: Sorvia sunucusuna yayınla
+        shell: bash
+        env:
+          SECRET: ${{ secrets.SORVIA_RELEASE_SECRET }}
+        run: |
+          set -euo pipefail
+          cd release
+          CHUNK=$((50 * 1024 * 1024))
+          for FILE in "Sorvia-Desktop-Kurulum-$VERSION.exe" "Sorvia-Desktop-Kurulum-$VERSION.exe.blockmap" latest.yml; do
+            SIZE=$(stat -c %s "$FILE")
+            OFFSET=0
+            PART=0
+            while :; do
+              LEN=$(( SIZE - OFFSET < CHUNK ? SIZE - OFFSET : CHUNK ))
+              FINAL=$(( OFFSET + LEN >= SIZE ? 1 : 0 ))
+              dd if="$FILE" of=part.bin bs=1M skip=$(( PART * 50 )) count=50 status=none
+              curl --fail-with-body -sS --retry 3 -X PUT -H "Authorization: Bearer $SECRET" -H "Content-Type: application/octet-stream" --data-binary @part.bin "https://sorvia.net/api/desktop/release/files/$FILE?offset=$OFFSET&final=$FINAL"
+              echo
+              OFFSET=$(( OFFSET + LEN ))
+              PART=$(( PART + 1 ))
+              [ "$FINAL" = 1 ] && break
+            done
+          done
+          NOTES=$(gh release view "$TAG" --json body -q .body || true)
+          jq -n --arg version "$VERSION" --arg notes "$NOTES" '{version: $version, notes: $notes}' > publish.json
+          curl --fail-with-body -sS -X POST -H "Authorization: Bearer $SECRET" -H "Content-Type: application/json" --data @publish.json https://sorvia.net/api/desktop/release

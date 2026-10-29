@@ -39,10 +39,28 @@ let enabled = false;
 let lastError: string | null = null;
 let folderCache: { at: number; folders: MailFolder[] } | null = null;
 
+function activeAccount() {
+  const list = store.mailAccounts();
+  return list.find((item) => item.id === store.activeMail()) ?? list[0] ?? null;
+}
+
 function credentials() {
-  const account = store.mailAccount();
-  const password = store.secret("mail");
+  const account = activeAccount();
+  const password = account ? store.secret(`mail:${account.id}`) : null;
   return account && password ? { ...account, password } : null;
+}
+
+function describeAccount(account: { id: string; address: string; name: string }, active: boolean): MailAccountInfo {
+  return {
+    id: account.id,
+    active,
+    address: account.address,
+    name: account.name,
+    imapHost: MAIL_HOST.imap.host,
+    smtpHost: MAIL_HOST.smtp.host,
+    connected: active && Boolean(worker?.usable || watcher?.usable),
+    lastError: active ? lastError : null,
+  };
 }
 
 function createClient(user: string, pass: string) {
@@ -276,6 +294,10 @@ async function watch() {
 }
 
 export const mail = {
+  onSwitched(listener: () => void) {
+    events.on("switched", listener);
+    return () => events.off("switched", listener);
+  },
   onNew(listener: (items: { from: string; subject: string }[]) => void) {
     events.on("new", listener);
     return () => events.off("new", listener);
@@ -294,9 +316,23 @@ export const mail = {
     void stopClients().then(() => retryWatch(3_000));
   },
   info(): MailAccountInfo | null {
-    const account = store.mailAccount();
-    if (!account) return null;
-    return { address: account.address, name: account.name, imapHost: MAIL_HOST.imap.host, smtpHost: MAIL_HOST.smtp.host, connected: Boolean(worker?.usable || watcher?.usable), lastError };
+    const account = activeAccount();
+    return account ? describeAccount(account, true) : null;
+  },
+  accounts(): MailAccountInfo[] {
+    const active = activeAccount();
+    return store.mailAccounts().map((item) => describeAccount(item, item.id === active?.id));
+  },
+  async switchAccount(id: unknown) {
+    const target = store.mailAccounts().find((item) => item.id === id);
+    if (!target) return mail.info();
+    await mail.stop();
+    attachmentCache.clear();
+    lastError = null;
+    store.setMailAccounts(store.mailAccounts(), target.id);
+    mail.start();
+    events.emit("switched");
+    return mail.info();
   },
   connect: (input: unknown) =>
     guard(async () => {
@@ -311,17 +347,39 @@ export const mail = {
       await probe.connect();
       await probe.logout().catch(() => probe.close());
       await mail.stop();
-      store.setMailAccount({ address, name: String(value.name ?? "").trim().slice(0, 120) || address });
-      store.setSecret("mail", password);
+      attachmentCache.clear();
+      const list = store.mailAccounts();
+      const existing = list.find((item) => item.address === address);
+      if (!existing && list.length >= 8) throw new MailFailure("invalid", "En fazla 8 posta hesabı ekleyebilirsin.");
+      const id = existing?.id ?? `m${randomUUID().slice(0, 8)}`;
+      const entry = { id, address, name: String(value.name ?? "").trim().slice(0, 120) || existing?.name || address };
+      store.setSecret(`mail:${id}`, password);
+      store.setMailAccounts(existing ? list.map((item) => (item.id === id ? entry : item)) : [...list, entry], id);
       lastError = null;
       mail.start();
       return mail.info()!;
     }),
-  async disconnect() {
+  async disconnect(id?: unknown) {
+    const list = store.mailAccounts();
+    const active = activeAccount();
+    const target = list.find((item) => item.id === id) ?? active;
+    if (!target) return;
+    const removingActive = target.id === active?.id;
+    if (removingActive) {
+      await mail.stop();
+      attachmentCache.clear();
+      lastError = null;
+    }
+    store.setSecret(`mail:${target.id}`, null);
+    const rest = list.filter((item) => item.id !== target.id);
+    store.setMailAccounts(rest, removingActive ? (rest[0]?.id ?? null) : (active?.id ?? null));
+    if (removingActive && rest.length) mail.start();
+  },
+  async disconnectAll() {
     await mail.stop();
     attachmentCache.clear();
-    store.setMailAccount(null);
-    store.setSecret("mail", null);
+    for (const item of store.mailAccounts()) store.setSecret(`mail:${item.id}`, null);
+    store.setMailAccounts([], null);
     lastError = null;
   },
   folders: () => guard(async () => folders(await client(), true)),

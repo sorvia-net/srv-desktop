@@ -68,7 +68,7 @@ function Transfers() {
     <div className="relative">
       <button onClick={() => setOpen((value) => !value)} aria-label="Aktarımlar" className="relative flex size-8 items-center justify-center rounded-full text-ink-2 hover:bg-white/10 hover:text-ink">
         <svg viewBox="0 0 32 32" className="absolute inset-0 size-8 -rotate-90">
-          {running.length > 0 && <circle cx="16" cy="16" r="13" fill="none" stroke="#ff9b42" strokeWidth="2.2" strokeDasharray={`${Math.max(0.04, ratio) * 81.7} 81.7`} strokeLinecap="round" />}
+          {running.length > 0 && <circle cx="16" cy="16" r="13" fill="none" stroke="var(--color-accent-2)" strokeWidth="2.2" strokeDasharray={`${Math.max(0.04, ratio) * 81.7} 81.7`} strokeLinecap="round" />}
         </svg>
         <ArrowDownUp className="relative size-[15px]" />
       </button>

@@ -82,7 +82,7 @@ export const filesApi = {
 
 export const mailApi = {
   account: async (): Promise<ApiResult<MailAccountInfo | null>> =>
-    ok(previewMode ? { address: previewUser.email, name: previewUser.name, imapHost: "önizleme", smtpHost: "önizleme", connected: true, lastError: null } : await bridge.mail.account()),
+    ok(previewMode ? { id: "preview", active: true, address: previewUser.email, name: previewUser.name, imapHost: "önizleme", smtpHost: "önizleme", connected: true, lastError: null } : await bridge.mail.account()),
   folders: async (): Promise<ApiResult<MailFolder[]>> => (previewMode ? ok(preview.mailFolders()) : bridge.mail.folders()),
   list: async (folder: string, page: number): Promise<ApiResult<{ total: number; messages: MailSummary[] }>> => (previewMode ? ok(preview.mailList(folder)) : bridge.mail.list(folder, page)),
   read: async (folder: string, uid: number): Promise<ApiResult<MailMessage>> => {

@@ -1,6 +1,9 @@
+import { RefreshCw } from "lucide-react";
 import { MotionConfig } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ACCENTS } from "@shared/appearance";
+import { comboFromEvent, resolveShortcuts, type ShortcutAction } from "@shared/shortcuts";
 import type { AppNotification, AuthState, ChatChannel, HomeSummary, MailAccountInfo, MailFolder, ModuleId, Preferences } from "@shared/contracts";
 import { api, mailApi, setPreviewMode } from "@/data/api";
 import { bridge } from "@/data/bridge";
@@ -19,6 +22,16 @@ import { Connect } from "@/screens/Connect";
 import { Background } from "@/shell/Background";
 import { OverlayProvider, SessionProvider, useOverlay, useSession } from "@/shell/context";
 import { CommandPalette, NotificationCenter, PreviewBanner, QuickTask, Toasts } from "@/shell/overlays";
+
+async function nextMailAccount(session: { toast: (message: string, tone?: "ok" | "bad" | "info") => void }) {
+  const accounts = await bridge.mail.accounts();
+  if (accounts.length < 2) return session.toast("Geçiş için ikinci bir posta hesabı ekle", "info");
+  const index = accounts.findIndex((item) => item.active);
+  const next = accounts[(index + 1) % accounts.length]!;
+  await bridge.mail.switchAccount(next.id);
+  invalidate("mail:");
+  session.toast(`Posta: ${next.address}`, "ok");
+}
 
 function identity(state: AuthState) {
   if (state.status === "signedIn") return `user:${state.user.id}`;
@@ -64,6 +77,17 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.motion = reduce === "on" ? "off" : "on";
   }, [reduce]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const accent = ACCENTS[prefs?.accent ?? "ember"] ?? ACCENTS.ember;
+    root.style.setProperty("--color-accent", accent.base);
+    root.style.setProperty("--color-accent-2", accent.light);
+    root.style.setProperty("--color-accent-3", accent.soft);
+    root.style.setProperty("--color-accent-ink", accent.ink);
+    root.dataset.style = prefs?.uiStyle ?? "glass";
+    root.dataset.density = prefs?.density ?? "comfortable";
+  }, [prefs?.accent, prefs?.uiStyle, prefs?.density]);
 
   const session = useMemo(() => {
     if (!auth || !prefs) return null;
@@ -127,6 +151,8 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
   }, [unread, mailUnread]);
 
   useEffect(() => bridge.mail.onNewMail(() => invalidate("mail:")), []);
+  const [update, setUpdate] = useState<string | null>(null);
+  useEffect(() => bridge.system.onUpdateReady(setUpdate), []);
 
   const latest = useRef({ os, overlay, session, installed });
   latest.current = { os, overlay, session, installed };
@@ -136,43 +162,36 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
       .filter((item) => item.kind === "app" && item.id !== "settings")
       .map((item) => item.id as ModuleId);
     const onKey = (event: KeyboardEvent) => {
-      const { os: system, overlay: layer, installed: apps } = latest.current;
+      const { os: system, overlay: layer, installed: apps, session: current } = latest.current;
       if (system.locked) return;
+      if ((event.target as HTMLElement | null)?.dataset?.shortcutRecorder) return;
       const ctrl = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
+      const combo = comboFromEvent(event);
+      const map = resolveShortcuts(current.prefs.shortcuts);
+      const action = combo ? (Object.keys(map) as ShortcutAction[]).find((name) => name !== "global" && map[name] === combo) : undefined;
       const shortcuts = order.filter((id) => apps.has(id));
-      if (ctrl && key === "k") {
+      const run = (work: () => void) => {
         event.preventDefault();
-        layer.toggle("palette");
-      } else if (ctrl && key === "n" && !event.shiftKey && apps.has("tasks")) {
-        event.preventDefault();
-        layer.open("quickTask");
-      } else if (ctrl && event.key === ",") {
-        event.preventDefault();
-        system.openApp("settings");
-      } else if (ctrl && key === "h") {
-        event.preventDefault();
-        layer.close();
-        system.goHome();
-      } else if (ctrl && event.key === "Tab") {
-        event.preventDefault();
-        system.setSwitcher(!system.switcher);
-      } else if (ctrl && key === "l") {
-        event.preventDefault();
-        system.lock();
-      } else if (ctrl && /^[1-9]$/.test(event.key)) {
+        work();
+      };
+      if (action === "palette") run(() => layer.toggle("palette"));
+      else if (action === "quickTask" && apps.has("tasks")) run(() => layer.open("quickTask"));
+      else if (action === "notifications") run(() => layer.toggle("notifications"));
+      else if (action === "control") run(() => system.setControl(!system.control));
+      else if (action === "settings") run(() => system.openApp("settings"));
+      else if (action === "home") run(() => { layer.close(); system.goHome(); });
+      else if (action === "switcher") run(() => system.setSwitcher(!system.switcher));
+      else if (action === "lock") run(() => system.lock());
+      else if (action === "refresh") run(() => invalidate(""));
+      else if (action === "mail" && apps.has("mail")) run(() => { layer.close(); system.openApp("mail"); });
+      else if (action === "nextAccount") run(() => void nextMailAccount(current));
+      else if (ctrl && /^[1-9]$/.test(event.key)) {
         const target = shortcuts[Number(event.key) - 1];
         if (target) {
           event.preventDefault();
           layer.close();
           system.openApp(target);
         }
-      } else if (event.altKey && event.key === "ArrowLeft") {
-        event.preventDefault();
-        system.goHome();
-      } else if (event.key === "F5" || (ctrl && key === "r")) {
-        event.preventDefault();
-        invalidate("");
       } else if (event.key === "Escape") {
         if (layer.palette || layer.notifications || layer.quickTask) layer.close();
         else if (system.folder) system.openFolder(null);
@@ -240,6 +259,14 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
         <QuickTask />
         <LockScreen />
         <Toasts />
+        {update && (
+          <button
+            onClick={() => bridge.system.installUpdate()}
+            className="accent-fill absolute right-5 top-14 z-[70] flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold"
+          >
+            <RefreshCw className="size-4" /> Sorvia {update} hazır · Yeniden başlat
+          </button>
+        )}
       </div>
     </BadgeContext.Provider>
   );

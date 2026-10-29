@@ -1,3 +1,4 @@
+import { ACCENTS, type Accent } from "@shared/appearance";
 import { Bell, BellOff, Lock, LogOut, Mail, Moon, RefreshCw, Settings, Sparkles, Wifi } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
@@ -76,7 +77,7 @@ export function ControlCenter() {
                   session.toast("Her şey yenileniyor", "info");
                 }}
               />
-              <Square icon={<Sparkles className="size-5" />} label="Hareket" on={prefs.reduceMotion === "on"} onClick={() => session.setPrefs({ reduceMotion: prefs.reduceMotion === "on" ? "system" : "on" })} />
+              <Square icon={<Sparkles className="size-5" />} label={`Tema: ${ACCENTS[prefs.accent].label}`} on onClick={() => { const keys = Object.keys(ACCENTS) as Accent[]; session.setPrefs({ accent: keys[(keys.indexOf(prefs.accent) + 1) % keys.length]! }); }} />
               <Square icon={<Settings className="size-5" />} label="Ayarlar" onClick={() => os.openApp("settings")} />
               <div className="col-span-4 rounded-[24px] bg-white/[0.12] p-3">
                 <p className="mb-2 px-1 text-[11.5px] font-medium text-white/70">Duvar kâğıdı</p>

@@ -8,7 +8,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppNotification, Priority, Task, TicketSummary } from "@shared/contracts";
 import { routeForNotification } from "@shared/routes";
 import { api } from "@/data/api";
-import { bridge } from "@/data/bridge";
 import { relative } from "@/data/format";
 import { invalidate, useQuery } from "@/data/query";
 import { Button, cn, Kbd, PRIORITY_LABEL, Segmented, Spinner } from "@/design/ui";
@@ -66,7 +65,7 @@ export function CommandPalette() {
         title: item.title,
         hint: item.subtitle,
         icon: <Tile item={item} size={22} className="shadow-none" />,
-        run: done(() => (item.kind === "app" ? os.openApp(item.id) : void bridge.system.openExternal(item.url))),
+        run: done(() => (item.kind === "app" ? os.openApp(item.id) : os.openApp("web", { link: item.id, url: item.url, title: item.title, at: String(Date.now()) }))),
       }));
     const store = catalog
       .filter((item) => !installed.has(item.id) && available(item, session.user))

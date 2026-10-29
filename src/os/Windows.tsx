@@ -15,6 +15,7 @@ import { Storage } from "@/screens/Storage";
 import { Store } from "@/screens/Store";
 import { Tasks } from "@/screens/Tasks";
 import { Tickets } from "@/screens/Tickets";
+import { Web } from "@/screens/Web";
 import { useSession } from "@/shell/context";
 
 import { Tile } from "./icons";
@@ -32,6 +33,7 @@ const SCREENS: Record<ModuleId, ComponentType> = {
   gallery: Gallery,
   storage: Storage,
   store: Store,
+  web: Web,
   settings: Settings,
 };
 

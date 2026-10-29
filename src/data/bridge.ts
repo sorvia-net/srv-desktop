@@ -18,6 +18,11 @@ const DEFAULT_PREFS: Preferences = {
   autoLockMinutes: 0,
   homeLayout: null,
   installed: null,
+  accent: "ember",
+  uiStyle: "glass",
+  iconSize: "medium",
+  density: "comfortable",
+  shortcuts: {},
 };
 
 function webBridge(): SorviaBridge {
@@ -28,7 +33,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.2.0",
+    version: "0.3.0",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -67,6 +72,8 @@ function webBridge(): SorviaBridge {
     },
     mail: {
       account: async () => null,
+      accounts: async () => [],
+      switchAccount: async () => null,
       connect: async () => unavailable(),
       disconnect: async () => undefined,
       folders: async () => unavailable(),
@@ -95,6 +102,14 @@ function webBridge(): SorviaBridge {
       onCommand: () => () => undefined,
       setBadge: () => undefined,
       checkUpdate: async () => null,
+      installUpdate: () => undefined,
+      onUpdateReady: () => () => undefined,
+      pickWallpaper: async () => null,
+      wallpaperImage: async () => null,
+    },
+    account: {
+      pickAvatar: async () => unavailable(),
+      removeAvatar: async () => unavailable(),
     },
     files: {
       pick: async () => [],

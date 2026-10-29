@@ -1,7 +1,7 @@
 {
   "name": "srv-desktop",
   "productName": "Sorvia Desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Sorvia çalışanları için Windows masaüstü çalışma alanı",
   "author": "Sorvia",
@@ -20,6 +20,12 @@
     "appId": "net.sorvia.desktop",
     "productName": "Sorvia Desktop",
     "copyright": "© Sorvia",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://sorvia.net/api/desktop/update"
+      }
+    ],
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -77,5 +83,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

@@ -153,12 +153,17 @@ export function itemById(id: string): HomeItem | null {
   return catalog().find((item) => item.id === id) ?? FOLDERS.find((folder) => folder.id === id) ?? null;
 }
 
+const WEB_APP: AppDef = {
+  kind: "app", id: "web", title: "Web", subtitle: "Sorvia sayfaları", category: "Sistem", icon: Globe, tile: "linear-gradient(160deg,#9fd0ff 0%,#4b93f2 52%,#2457c8 100%)", system: true, version: "1.0", size: "—",
+  description: "Sorvia sayfalarını uygulamanın içinde açar.", features: [],
+};
+
 export function appById(id: ModuleId) {
-  return APP_LIST.find((item) => item.id === id)!;
+  return APP_LIST.find((item) => item.id === id) ?? WEB_APP;
 }
 
 export function available(item: AppDef | LinkDef, user: DesktopUser) {
-  if (item.kind === "app" && item.id !== "store" && item.id !== "settings" && !user.modules.includes(item.id)) return false;
+  if (item.kind === "app" && item.id !== "store" && item.id !== "settings" && item.id !== "web" && !user.modules.includes(item.id)) return false;
   if (item.role && (ROLE_LEVEL[user.role] ?? 0) < ROLE_LEVEL[item.role]!) return false;
   if (item.permission && user.role !== "OWNER" && !user.permissions.includes(item.permission)) return false;
   return true;

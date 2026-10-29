@@ -38,8 +38,10 @@ const bridge: SorviaBridge = {
   },
   mail: {
     account: () => ipcRenderer.invoke("mail:account"),
+    accounts: () => ipcRenderer.invoke("mail:accounts"),
+    switchAccount: (id) => ipcRenderer.invoke("mail:switchAccount", id),
     connect: (input) => ipcRenderer.invoke("mail:connect", input),
-    disconnect: () => ipcRenderer.invoke("mail:disconnect"),
+    disconnect: (id) => ipcRenderer.invoke("mail:disconnect", id),
     folders: () => ipcRenderer.invoke("mail:folders"),
     list: (folder, page) => ipcRenderer.invoke("mail:list", folder, page),
     read: (folder, uid) => ipcRenderer.invoke("mail:read", folder, uid),
@@ -61,6 +63,19 @@ const bridge: SorviaBridge = {
     onCommand: (listener) => listen("system:command", listener),
     setBadge: (count) => ipcRenderer.send("system:setBadge", count),
     checkUpdate: () => ipcRenderer.invoke("system:checkUpdate"),
+    installUpdate: () => ipcRenderer.send("system:installUpdate"),
+    onUpdateReady: (listener) => {
+      void ipcRenderer.invoke("system:updateReady").then((version: string | null) => {
+        if (version) listener(version);
+      });
+      return listen("system:updateReady", listener);
+    },
+    pickWallpaper: () => ipcRenderer.invoke("system:pickWallpaper"),
+    wallpaperImage: () => ipcRenderer.invoke("system:wallpaperImage"),
+  },
+  account: {
+    pickAvatar: () => ipcRenderer.invoke("account:pickAvatar"),
+    removeAvatar: () => ipcRenderer.invoke("account:removeAvatar"),
   },
   files: {
     pick: (options) => ipcRenderer.invoke("files:pick", options),

@@ -7,7 +7,6 @@ import { useModules, useCatalog } from "@/os/modules";
 import { Tile } from "@/os/icons";
 import { available, lockReason, type AppDef, type LinkDef } from "@/os/registry";
 import { useOs } from "@/os/state";
-import { bridge } from "@/data/bridge";
 import { useSession } from "@/shell/context";
 
 type Item = AppDef | LinkDef;
@@ -128,7 +127,7 @@ function Action({ item, compact = false }: { item: Item; compact?: boolean }) {
         size="sm"
         onClick={() => {
           if (item.kind === "app") os.openApp(item.id);
-          else void bridge.system.openExternal(item.url);
+          else os.openApp("web", { link: item.id, url: item.url, title: item.title, at: String(Date.now()) });
         }}
       >
         Aç

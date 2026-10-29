@@ -2,7 +2,9 @@ import { app, safeStorage } from "electron";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { ACCENTS, DENSITIES, ICON_SIZES, isOneOf, UI_STYLES, WALLPAPERS } from "../shared/appearance";
 import type { DesktopUser, Preferences } from "../shared/contracts";
+import { sanitizeShortcuts } from "../shared/shortcuts";
 
 export const DEFAULT_PREFS: Preferences = {
   launchAtLogin: false,
@@ -16,6 +18,11 @@ export const DEFAULT_PREFS: Preferences = {
   autoLockMinutes: 0,
   homeLayout: null,
   installed: null,
+  accent: "ember",
+  uiStyle: "glass",
+  iconSize: "medium",
+  density: "comfortable",
+  shortcuts: {},
 };
 
 type Shape = {
@@ -23,12 +30,16 @@ type Shape = {
   user: DesktopUser | null;
   session: { expiresAt: string } | null;
   mail: { address: string; name: string } | null;
+  mailAccounts: MailAccount[];
+  activeMail: string | null;
   secrets: Record<string, string>;
   lastNotificationAt: string | null;
   trayHintShown: boolean;
 };
 
-const EMPTY: Shape = { prefs: DEFAULT_PREFS, user: null, session: null, mail: null, secrets: {}, lastNotificationAt: null, trayHintShown: false };
+export type MailAccount = { id: string; address: string; name: string };
+
+const EMPTY: Shape = { prefs: DEFAULT_PREFS, user: null, session: null, mail: null, mailAccounts: [], activeMail: null, secrets: {}, lastNotificationAt: null, trayHintShown: false };
 
 let cache: Shape | null = null;
 
@@ -40,7 +51,7 @@ function load(): Shape {
   if (cache) return cache;
   try {
     const parsed = JSON.parse(readFileSync(file(), "utf8")) as Partial<Shape>;
-    cache = { ...EMPTY, ...parsed, prefs: sanitizePrefs({ ...DEFAULT_PREFS, ...(parsed.prefs ?? {}) }), secrets: parsed.secrets ?? {} };
+    cache = { ...EMPTY, ...parsed, mailAccounts: Array.isArray(parsed.mailAccounts) ? parsed.mailAccounts : [], prefs: sanitizePrefs({ ...DEFAULT_PREFS, ...(parsed.prefs ?? {}) }), secrets: parsed.secrets ?? {} };
   } catch {
     cache = structuredClone(EMPTY);
   }
@@ -68,7 +79,12 @@ function sanitizePrefs(input: Record<string, unknown>): Preferences {
   if (typeof input.nativeNotifications === "boolean") prefs.nativeNotifications = input.nativeNotifications;
   if (typeof input.showRemoteImages === "boolean") prefs.showRemoteImages = input.showRemoteImages;
   if (input.reduceMotion === "system" || input.reduceMotion === "on" || input.reduceMotion === "off") prefs.reduceMotion = input.reduceMotion;
-  if (input.wallpaper === "ember" || input.wallpaper === "dusk" || input.wallpaper === "noir") prefs.wallpaper = input.wallpaper;
+  if (isOneOf(WALLPAPERS, input.wallpaper)) prefs.wallpaper = input.wallpaper;
+  if (isOneOf(ACCENTS, input.accent)) prefs.accent = input.accent;
+  if (isOneOf(UI_STYLES, input.uiStyle)) prefs.uiStyle = input.uiStyle;
+  if (isOneOf(ICON_SIZES, input.iconSize)) prefs.iconSize = input.iconSize;
+  if (isOneOf(DENSITIES, input.density)) prefs.density = input.density;
+  prefs.shortcuts = sanitizeShortcuts(input.shortcuts);
   if (typeof input.pollSeconds === "number" && Number.isFinite(input.pollSeconds)) prefs.pollSeconds = Math.min(600, Math.max(15, Math.round(input.pollSeconds)));
   if (typeof input.doNotDisturb === "boolean") prefs.doNotDisturb = input.doNotDisturb;
   if (typeof input.autoLockMinutes === "number" && [0, 5, 15, 30, 60].includes(input.autoLockMinutes)) prefs.autoLockMinutes = input.autoLockMinutes;
@@ -106,10 +122,27 @@ export const store = {
       shape.session = expiresAt ? { expiresAt } : null;
     });
   },
-  mailAccount: () => load().mail,
-  setMailAccount(account: { address: string; name: string } | null) {
+  mailAccounts(): MailAccount[] {
+    const shape = load();
+    if (shape.mail && !shape.mailAccounts.length) {
+      const legacy = shape.mail;
+      const secret = shape.secrets.mail;
+      update((next) => {
+        next.mailAccounts = [{ id: "m1", address: legacy.address, name: legacy.name }];
+        next.activeMail = "m1";
+        next.mail = null;
+        if (secret) next.secrets["mail:m1"] = secret;
+        delete next.secrets.mail;
+      });
+    }
+    return load().mailAccounts;
+  },
+  activeMail: () => load().activeMail,
+  setMailAccounts(list: MailAccount[], active: string | null) {
     update((shape) => {
-      shape.mail = account;
+      shape.mailAccounts = list;
+      shape.activeMail = active;
+      shape.mail = null;
     });
   },
   secret(name: string): string | null {

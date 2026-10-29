@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, Forward, ImageOff, Inbox, Lock, Mail as MailIcon, MailOpen, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, Trash2, X } from "lucide-react";
+import { Archive, ArrowLeft, Check, ChevronsUpDown, Plus, Forward, ImageOff, Inbox, Lock, Mail as MailIcon, MailOpen, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -8,7 +8,7 @@ import { bridge } from "@/data/bridge";
 import { bytes, relative } from "@/data/format";
 import { invalidate, setQueryData, useQuery } from "@/data/query";
 import { Avatar, Button, cn, Empty, ErrorNote, Skeleton, Spinner } from "@/design/ui";
-import { useOverlay, useSession } from "@/shell/context";
+import { useNav, useOverlay, useSession } from "@/shell/context";
 
 const FOLDER_ICON: Record<string, React.ReactNode> = {
   INBOX: <Inbox className="size-4" />,
@@ -20,15 +20,31 @@ const FOLDER_ICON: Record<string, React.ReactNode> = {
 };
 
 export function Mail() {
+  const nav = useNav();
+  const [adding, setAdding] = useState(false);
   const account = useQuery<MailAccountInfo | null>("mail:account", () => mailApi.account());
+  useEffect(() => {
+    if (nav.route.params?.add) setAdding(true);
+  }, [nav.route.params]);
   if (account.loading) return <div className="flex h-full items-center justify-center"><Spinner className="size-6" /></div>;
-  if (!account.data) return <ConnectMail onConnected={() => invalidate("mail:")} />;
-  return <MailClient account={account.data} />;
+  if (!account.data || adding) {
+    return (
+      <ConnectMail
+        another={Boolean(account.data)}
+        onCancel={account.data ? () => setAdding(false) : undefined}
+        onConnected={() => {
+          setAdding(false);
+          invalidate("mail:");
+        }}
+      />
+    );
+  }
+  return <MailClient key={account.data.id} account={account.data} onAdd={() => setAdding(true)} />;
 }
 
-function ConnectMail({ onConnected }: { onConnected: () => void }) {
+function ConnectMail({ onConnected, onCancel, another = false }: { onConnected: () => void; onCancel?: () => void; another?: boolean }) {
   const session = useSession();
-  const suggested = session.user.email.endsWith("@sorvia.net") ? session.user.email : "";
+  const suggested = !another && session.user.email.endsWith("@sorvia.net") ? session.user.email : "";
   const [address, setAddress] = useState(suggested);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,7 +70,7 @@ function ConnectMail({ onConnected }: { onConnected: () => void }) {
         <span className="flex size-14 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#9cc8ff] via-[#5a95f0] to-[#2f62c9] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
           <MailIcon className="size-7" />
         </span>
-        <h1 className="mt-5 text-[24px] font-semibold tracking-[-0.02em] text-ink">Sorvia Mail</h1>
+        <h1 className="mt-5 text-[24px] font-semibold tracking-[-0.02em] text-ink">{another ? "Başka bir hesap ekle" : "Sorvia Mail"}</h1>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-2">Kurumsal posta kutunu bağla. Bağlantı doğrudan mail.sorvia.net ile kurulur; parolan yalnızca bu bilgisayarda, Windows hesabına bağlı şifreleme ile saklanır.</p>
         <form
           className="mt-6 space-y-3"
@@ -69,6 +85,11 @@ function ConnectMail({ onConnected }: { onConnected: () => void }) {
           <Button type="submit" variant="accent" size="lg" className="w-full" loading={busy} disabled={!address || !password}>
             {!busy && <Lock />} Bağlan
           </Button>
+          {onCancel && (
+            <Button type="button" variant="ghost" className="w-full" onClick={onCancel}>
+              Vazgeç
+            </Button>
+          )}
         </form>
         <p className="mt-5 text-[11.5px] leading-relaxed text-ink-4">IMAP 993 (SSL) ve SMTP 465 kullanılır. Bağlantıyı istediğin an Ayarlar'dan kaldırabilirsin.</p>
       </motion.div>
@@ -76,7 +97,7 @@ function ConnectMail({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-function MailClient({ account }: { account: MailAccountInfo }) {
+function MailClient({ account, onAdd }: { account: MailAccountInfo; onAdd: () => void }) {
   const overlay = useOverlay();
   const session = useSession();
   const [folder, setFolder] = useState("INBOX");
@@ -119,10 +140,7 @@ function MailClient({ account }: { account: MailAccountInfo }) {
             </button>
           ))}
         </nav>
-        <div className="mt-auto rounded-[18px] bg-white/[0.05] p-3 ring-1 ring-white/8">
-          <p className="truncate text-[12.5px] font-medium text-ink">{account.address}</p>
-          <p className="mt-0.5 text-[11px] text-ink-3">{account.lastError ? <span className="text-bad">{account.lastError}</span> : `${account.imapHost} · bağlı`}</p>
-        </div>
+        <AccountSwitcher account={account} onAdd={onAdd} />
       </aside>
       <section className="flex min-h-0 flex-col">
         <form
@@ -360,5 +378,56 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="w-12 shrink-0 text-[12.5px] text-ink-3">{label}</span>
       {children}
     </label>
+  );
+}
+
+function AccountSwitcher({ account, onAdd }: { account: MailAccountInfo; onAdd: () => void }) {
+  const session = useSession();
+  const [open, setOpen] = useState(false);
+  const accounts = useQuery<MailAccountInfo[]>("mail:accounts", async () => ({ ok: true, data: isPreview() ? [account] : await bridge.mail.accounts() }));
+  const others = (accounts.data ?? []).filter((item) => item.id !== account.id);
+
+  const switchTo = async (item: MailAccountInfo) => {
+    setOpen(false);
+    await bridge.mail.switchAccount(item.id);
+    invalidate("mail:");
+    session.toast(`Posta: ${item.address}`, "ok");
+  };
+
+  return (
+    <div className="relative mt-auto">
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="glass-float absolute bottom-full left-0 right-0 z-20 mb-2 overflow-hidden rounded-[18px] p-1.5">
+            {[account, ...others].map((item) => (
+              <button key={item.id} onClick={() => (item.id === account.id ? setOpen(false) : void switchTo(item))} className="flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-2 text-left hover:bg-white/[0.08]">
+                <Avatar name={item.name || item.address} size={28} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] font-medium text-ink">{item.name}</span>
+                  <span className="block truncate text-[11px] text-ink-3">{item.address}</span>
+                </span>
+                {item.id === account.id && <Check className="size-4 text-accent-2" />}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                setOpen(false);
+                onAdd();
+              }}
+              className="mt-1 flex w-full items-center gap-2.5 rounded-[12px] border-t border-white/[0.08] px-2.5 py-2.5 text-left text-[12.5px] text-ink-2 hover:bg-white/[0.08]"
+            >
+              <Plus className="size-4" /> Hesap ekle
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <button onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-2.5 rounded-[18px] bg-white/[0.05] p-3 text-left ring-1 ring-white/8 hover:bg-white/[0.08]">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12.5px] font-medium text-ink">{account.address}</span>
+          <span className="mt-0.5 block text-[11px] text-ink-3">{account.lastError ? <span className="text-bad">{account.lastError}</span> : others.length ? `${others.length + 1} hesap · değiştir` : `${account.imapHost} · bağlı`}</span>
+        </span>
+        <ChevronsUpDown className="size-4 shrink-0 text-ink-3" />
+      </button>
+    </div>
   );
 }

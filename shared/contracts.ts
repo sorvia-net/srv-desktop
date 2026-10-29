@@ -1,6 +1,7 @@
+import type { Accent, Density, IconSize, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings";
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web";
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
@@ -135,7 +136,7 @@ export type MailMessage = MailSummary & {
   messageId: string | null;
 };
 
-export type MailAccountInfo = { address: string; name: string; imapHost: string; smtpHost: string; connected: boolean; lastError: string | null };
+export type MailAccountInfo = { id: string; active: boolean; address: string; name: string; imapHost: string; smtpHost: string; connected: boolean; lastError: string | null };
 
 export type MailDraft = { to: string; cc?: string; subject: string; text: string; inReplyTo?: string | null; references?: string | null };
 
@@ -158,13 +159,18 @@ export type Preferences = {
   closeToTray: boolean;
   nativeNotifications: boolean;
   reduceMotion: "system" | "on" | "off";
-  wallpaper: "ember" | "dusk" | "noir";
+  wallpaper: Wallpaper;
   showRemoteImages: boolean;
   pollSeconds: number;
   doNotDisturb: boolean;
   autoLockMinutes: number;
   homeLayout: HomeLayout | null;
   installed: string[] | null;
+  accent: Accent;
+  uiStyle: UiStyle;
+  iconSize: IconSize;
+  density: Density;
+  shortcuts: Record<string, string>;
 };
 
 export type HomeLayout = { grid: string[]; dock: string[] };
@@ -303,8 +309,10 @@ export type SorviaBridge = {
   };
   mail: {
     account(): Promise<MailAccountInfo | null>;
+    accounts(): Promise<MailAccountInfo[]>;
+    switchAccount(id: string): Promise<MailAccountInfo | null>;
     connect(input: { address: string; password: string; name?: string }): Promise<ApiResult<MailAccountInfo>>;
-    disconnect(): Promise<void>;
+    disconnect(id?: string): Promise<void>;
     folders(): Promise<ApiResult<MailFolder[]>>;
     list(folder: string, page: number): Promise<ApiResult<{ total: number; messages: MailSummary[] }>>;
     read(folder: string, uid: number): Promise<ApiResult<MailMessage>>;
@@ -326,6 +334,14 @@ export type SorviaBridge = {
     onCommand(listener: (command: string) => void): () => void;
     setBadge(count: number): void;
     checkUpdate(): Promise<UpdateInfo | null>;
+    installUpdate(): void;
+    onUpdateReady(listener: (version: string) => void): () => void;
+    pickWallpaper(): Promise<string | null>;
+    wallpaperImage(): Promise<string | null>;
+  };
+  account: {
+    pickAvatar(): Promise<ApiResult<DesktopUser | null> | null>;
+    removeAvatar(): Promise<ApiResult<DesktopUser | null>>;
   };
   files: {
     pick(options: { multiple: boolean; images: boolean }): Promise<string[]>;

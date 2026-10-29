@@ -1,8 +1,13 @@
-import type { Preferences } from "@shared/contracts";
+import { useEffect, useState } from "react";
+
+import type { Wallpaper } from "@shared/appearance";
+import { bridge } from "@/data/bridge";
 
 const NOISE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")";
 
-const SCENES: Record<Preferences["wallpaper"], { base: string; lamp: string; left: string; orb: string; foliage: string; floor: string }> = {
+type Scene = { base: string; lamp: string; left: string; orb: string; foliage: string; floor: string };
+
+const SCENES: Record<string, Scene> = {
   ember: {
     base: "linear-gradient(180deg, #2a1f19 0%, #1b1411 38%, #120d0b 70%, #0c0908 100%)",
     lamp: "radial-gradient(circle at 50% 46%, rgba(255,236,196,0.95) 0%, rgba(255,196,120,0.75) 22%, rgba(214,140,62,0.42) 48%, rgba(120,70,30,0.0) 72%)",
@@ -19,6 +24,30 @@ const SCENES: Record<Preferences["wallpaper"], { base: string; lamp: string; lef
     foliage: "rgba(40,34,48,0.85)",
     floor: "radial-gradient(ellipse at 30% 100%, rgba(60,70,120,0.5) 0%, rgba(20,24,40,0.0) 60%)",
   },
+  ocean: {
+    base: "linear-gradient(180deg, #101c26 0%, #0c151d 40%, #091017 72%, #060b10 100%)",
+    lamp: "radial-gradient(circle at 50% 46%, rgba(214,240,255,0.9) 0%, rgba(120,190,240,0.6) 24%, rgba(40,110,170,0.36) 50%, rgba(10,40,70,0.0) 72%)",
+    left: "radial-gradient(circle, rgba(230,246,255,1) 0%, rgba(140,200,255,0.8) 30%, rgba(60,140,220,0.0) 70%)",
+    orb: "radial-gradient(circle at 34% 30%, #7cc4ff 0%, #2f80ed 36%, #123c7a 72%, #071a38 100%)",
+    foliage: "rgba(18,38,52,0.85)",
+    floor: "radial-gradient(ellipse at 30% 100%, rgba(30,90,110,0.55) 0%, rgba(10,30,40,0.0) 60%)",
+  },
+  forest: {
+    base: "linear-gradient(180deg, #142019 0%, #0f1912 40%, #0b120d 72%, #070c08 100%)",
+    lamp: "radial-gradient(circle at 50% 46%, rgba(236,255,214,0.9) 0%, rgba(170,220,130,0.6) 24%, rgba(70,140,70,0.36) 50%, rgba(20,60,20,0.0) 72%)",
+    left: "radial-gradient(circle, rgba(244,255,230,1) 0%, rgba(180,230,150,0.8) 30%, rgba(90,170,90,0.0) 70%)",
+    orb: "radial-gradient(circle at 34% 30%, #9be38f 0%, #3fa34d 36%, #1c5a27 72%, #0b2610 100%)",
+    foliage: "rgba(26,48,28,0.85)",
+    floor: "radial-gradient(ellipse at 30% 100%, rgba(40,90,60,0.5) 0%, rgba(10,30,20,0.0) 60%)",
+  },
+  graphite: {
+    base: "linear-gradient(180deg, #1b1c1f 0%, #141518 45%, #0d0e10 100%)",
+    lamp: "radial-gradient(circle at 50% 46%, rgba(235,238,245,0.55) 0%, rgba(170,176,190,0.3) 26%, rgba(80,86,100,0.0) 70%)",
+    left: "radial-gradient(circle, rgba(240,242,248,0.7) 0%, rgba(180,186,200,0.4) 30%, rgba(120,126,140,0.0) 70%)",
+    orb: "radial-gradient(circle at 34% 30%, #9aa0ad 0%, #5d636f 40%, #2d3038 76%, #121318 100%)",
+    foliage: "rgba(30,32,36,0.85)",
+    floor: "radial-gradient(ellipse at 30% 100%, rgba(50,56,66,0.4) 0%, rgba(20,22,26,0.0) 60%)",
+  },
   noir: {
     base: "linear-gradient(180deg, #1a1716 0%, #131110 45%, #0d0c0b 100%)",
     lamp: "radial-gradient(circle at 50% 46%, rgba(255,232,206,0.55) 0%, rgba(220,170,120,0.32) 26%, rgba(100,70,40,0.0) 70%)",
@@ -29,8 +58,28 @@ const SCENES: Record<Preferences["wallpaper"], { base: string; lamp: string; lef
   },
 };
 
-export function Background({ wallpaper }: { wallpaper: Preferences["wallpaper"] }) {
-  const scene = SCENES[wallpaper] ?? SCENES.ember;
+export function Background({ wallpaper }: { wallpaper: Wallpaper }) {
+  const [custom, setCustom] = useState<string | null>(null);
+  useEffect(() => {
+    if (wallpaper !== "custom") return;
+    let alive = true;
+    const load = () => void bridge.system.wallpaperImage().then((image) => alive && setCustom(image));
+    load();
+    window.addEventListener("sorvia:wallpaper", load);
+    return () => {
+      alive = false;
+      window.removeEventListener("sorvia:wallpaper", load);
+    };
+  }, [wallpaper]);
+  if (wallpaper === "custom" && custom) {
+    return (
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <img src={custom} alt="" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(0,0,0,0.1)_30%,rgba(0,0,0,0.55)_100%)]" />
+      </div>
+    );
+  }
+  const scene = SCENES[wallpaper as keyof typeof SCENES] ?? SCENES.ember;
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
       <div className="absolute inset-0" style={{ background: scene.base }} />

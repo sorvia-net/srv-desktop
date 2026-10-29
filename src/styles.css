@@ -59,7 +59,7 @@ body {
 }
 
 ::selection {
-  background: rgba(255, 122, 26, 0.35);
+  background: color-mix(in oklab, var(--color-accent) 35%, transparent);
   color: #fff;
 }
 
@@ -129,8 +129,8 @@ button {
 }
 
 .accent-fill {
-  background: linear-gradient(180deg, #ff9640 0%, #ff7417 55%, #f2640a 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 24px -8px rgba(255, 110, 20, 0.7);
+  background: linear-gradient(180deg, var(--color-accent-2) 0%, var(--color-accent) 55%, color-mix(in oklab, var(--color-accent) 88%, black) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 24px -8px color-mix(in oklab, var(--color-accent) 70%, transparent);
   color: #fff;
 }
 
@@ -263,4 +263,26 @@ button {
   .jiggle {
     animation: none;
   }
+}
+
+:root[data-style="frosted"] {
+  --glass-panel: linear-gradient(180deg, rgba(70, 64, 60, 0.72), rgba(40, 36, 34, 0.76));
+  --glass-card: linear-gradient(180deg, rgba(30, 27, 25, 0.78), rgba(22, 20, 18, 0.78));
+}
+
+:root[data-style="solid"] {
+  --glass-panel: linear-gradient(180deg, #2b2623, #1e1a18);
+  --glass-card: linear-gradient(180deg, #23201d, #1b1816);
+  --glass-strip: linear-gradient(180deg, #3a3532, #2e2a27);
+}
+
+:root[data-style="solid"] .glass-panel,
+:root[data-style="solid"] .glass-card,
+:root[data-style="solid"] .glass-strip,
+:root[data-style="solid"] .glass-float {
+  backdrop-filter: none;
+}
+
+:root[data-density="compact"] body {
+  zoom: 0.92;
 }

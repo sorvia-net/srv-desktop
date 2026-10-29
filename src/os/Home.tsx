@@ -1,3 +1,4 @@
+import { ICON_SIZES } from "@shared/appearance";
 import { HardDrive, ListChecks, Mail, Minus, RotateCcw } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -5,7 +6,6 @@ import type { ReactNode } from "react";
 
 import type { HomeLayout, HomeSummary, StorageOverview } from "@shared/contracts";
 import { api, filesApi } from "@/data/api";
-import { bridge } from "@/data/bridge";
 import { bytes, dueLabel, time } from "@/data/format";
 import { useQuery } from "@/data/query";
 import { cn } from "@/design/ui";
@@ -141,8 +141,7 @@ function HomeIcon({ item, size, label, drag, setDrag, onDropOn, area }: { item: 
     if (item.kind === "app") os.openApp(item.id, undefined, ref.current?.getBoundingClientRect());
     else if (item.kind === "folder") os.openFolder(item.id);
     else {
-      void bridge.system.openExternal(item.url);
-      session.toast(`${item.title} tarayıcıda açılıyor`, "info");
+      os.openApp("web", { link: item.id, url: item.url, title: item.title, at: String(Date.now()) }, ref.current?.getBoundingClientRect());
     }
   };
 
@@ -310,10 +309,10 @@ export function HomeScreen({ visible }: { visible: boolean }) {
                 </button>
               </div>
             )}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] content-start gap-x-4 gap-y-8">
+            <div style={{ "--home-cell": `${(ICON_SIZES[session.prefs.iconSize] ?? 76) + 32}px` } as React.CSSProperties} className="grid grid-cols-[repeat(auto-fill,minmax(var(--home-cell),1fr))] content-start gap-x-4 gap-y-8">
               {layout.grid.map((id) => {
                 const item = itemById(id);
-                return item ? <HomeIcon key={id} item={item} size={76} label drag={drag} setDrag={setDrag} onDropOn={moveTo} area="grid" /> : null;
+                return item ? <HomeIcon key={id} item={item} size={ICON_SIZES[session.prefs.iconSize] ?? 76} label drag={drag} setDrag={setDrag} onDropOn={moveTo} area="grid" /> : null;
               })}
             </div>
           </section>
