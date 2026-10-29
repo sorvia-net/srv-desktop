@@ -23,6 +23,7 @@ const DEFAULT_PREFS: Preferences = {
   iconSize: "medium",
   density: "comfortable",
   shortcuts: {},
+  toastPosition: "bottom-center",
 };
 
 function webBridge(): SorviaBridge {

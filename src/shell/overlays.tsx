@@ -378,15 +378,25 @@ export function QuickTask() {
 
 export function Toasts() {
   const session = useSession();
+  const position = session.prefs.toastPosition ?? "bottom-center";
+  const top = position.startsWith("top");
+  const place = {
+    "top-left": "top-14 left-6 items-start",
+    "top-center": "top-14 left-1/2 -translate-x-1/2 items-center",
+    "top-right": "top-14 right-6 items-end",
+    "bottom-left": "bottom-6 left-6 items-start",
+    "bottom-center": "bottom-6 left-1/2 -translate-x-1/2 items-center",
+    "bottom-right": "bottom-6 right-6 items-end",
+  }[position];
   return (
-    <div className="pointer-events-none fixed bottom-6 left-1/2 z-[90] flex -translate-x-1/2 flex-col items-center gap-2">
+    <div className={cn("pointer-events-none fixed z-[90] flex flex-col gap-2", top && "flex-col-reverse", place)}>
       <AnimatePresence>
         {session.toasts.map((item) => (
           <motion.div
             key={item.id}
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            initial={{ opacity: 0, y: top ? -16 : 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            exit={{ opacity: 0, y: top ? -8 : 8, scale: 0.98 }}
             transition={spring}
             className="glass-float flex items-center gap-2.5 rounded-full px-4 py-2.5 text-[13px] font-medium text-ink"
           >

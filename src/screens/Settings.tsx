@@ -2,7 +2,7 @@ import { Camera, Check, ExternalLink, ImagePlus, Info, Keyboard, LogOut, Mail, M
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { ACCENTS, DENSITIES, ICON_SIZES, UI_STYLES, WALLPAPER_LABEL, type Accent, type Density, type IconSize, type UiStyle, type Wallpaper } from "@shared/appearance";
+import { ACCENTS, DENSITIES, ICON_SIZES, TOAST_POSITIONS, UI_STYLES, WALLPAPER_LABEL, type ToastPosition, type Accent, type Density, type IconSize, type UiStyle, type Wallpaper } from "@shared/appearance";
 import type { MailAccountInfo, UpdateInfo } from "@shared/contracts";
 import { comboFromEvent, resolveShortcuts, SHORTCUT_ACTIONS, type ShortcutAction } from "@shared/shortcuts";
 import { isPreview } from "@/data/api";
@@ -76,6 +76,25 @@ export function Settings() {
         <Group title="Bildirimler" footer="Rahatsız etmeyin açıkken Windows bildirimleri susar; bildirimler merkezde birikmeye devam eder.">
           <Toggle label="Windows bildirimleri" checked={prefs.nativeNotifications} onChange={(value) => session.setPrefs({ nativeNotifications: value })} />
           <Toggle label="Rahatsız etmeyin" checked={prefs.doNotDisturb} onChange={(value) => session.setPrefs({ doNotDisturb: value })} />
+          <div className="flex items-center justify-between gap-4 px-5 py-3">
+            <span className="text-[14px] text-ink">Uygulama içi bildirim konumu</span>
+            <div className="grid grid-cols-3 gap-1.5 rounded-[14px] bg-black/25 p-1.5">
+              {(Object.keys(TOAST_POSITIONS) as ToastPosition[]).map((value) => (
+                <button
+                  key={value}
+                  title={TOAST_POSITIONS[value]}
+                  aria-label={TOAST_POSITIONS[value]}
+                  onClick={() => {
+                    session.setPrefs({ toastPosition: value });
+                    session.toast(`Bildirimler: ${TOAST_POSITIONS[value]}`, "info");
+                  }}
+                  className={cn("relative h-9 w-14 rounded-[8px] transition", prefs.toastPosition === value ? "bg-accent/25 ring-1 ring-accent" : "bg-white/[0.06] hover:bg-white/[0.12]")}
+                >
+                  <span className={cn("absolute h-1.5 w-5 rounded-full", prefs.toastPosition === value ? "bg-accent-2" : "bg-white/40", value.startsWith("top") ? "top-1.5" : "bottom-1.5", value.endsWith("left") ? "left-1.5" : value.endsWith("right") ? "right-1.5" : "left-1/2 -translate-x-1/2")} />
+                </button>
+              ))}
+            </div>
+          </div>
           <Choice label="Yenileme sıklığı" value={String(prefs.pollSeconds)} onChange={(value) => session.setPrefs({ pollSeconds: Number(value) })} options={[{ value: "30", label: "30 sn" }, { value: "45", label: "45 sn" }, { value: "90", label: "90 sn" }]} />
           <Choice label="Otomatik kilit" value={String(prefs.autoLockMinutes)} onChange={(value) => session.setPrefs({ autoLockMinutes: Number(value) })} options={[{ value: "0", label: "Kapalı" }, { value: "5", label: "5 dk" }, { value: "15", label: "15 dk" }, { value: "30", label: "30 dk" }]} />
         </Group>

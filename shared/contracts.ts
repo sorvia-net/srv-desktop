@@ -1,4 +1,4 @@
-import type { Accent, Density, IconSize, UiStyle, Wallpaper } from "./appearance";
+import type { Accent, Density, IconSize, ToastPosition, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
 export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web";
@@ -171,6 +171,7 @@ export type Preferences = {
   iconSize: IconSize;
   density: Density;
   shortcuts: Record<string, string>;
+  toastPosition: ToastPosition;
 };
 
 export type HomeLayout = { grid: string[]; dock: string[] };

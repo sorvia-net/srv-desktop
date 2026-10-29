@@ -31,6 +31,16 @@ export type IconSize = keyof typeof ICON_SIZES;
 export const DENSITIES = { comfortable: "Ferah", compact: "Sık" } as const;
 export type Density = keyof typeof DENSITIES;
 
+export const TOAST_POSITIONS = {
+  "top-left": "Sol üst",
+  "top-center": "Üst orta",
+  "top-right": "Sağ üst",
+  "bottom-left": "Sol alt",
+  "bottom-center": "Alt orta",
+  "bottom-right": "Sağ alt",
+} as const;
+export type ToastPosition = keyof typeof TOAST_POSITIONS;
+
 export function isOneOf<T extends string>(list: readonly T[] | Record<T, unknown>, value: unknown): value is T {
   const keys = Array.isArray(list) ? list : Object.keys(list);
   return typeof value === "string" && (keys as string[]).includes(value);
