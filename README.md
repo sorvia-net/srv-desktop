@@ -46,4 +46,12 @@ tests/      birim testleri (node --test)
 
 ## Durum
 
-Bağlanma, My Sorvia, görevler, takvim, destek talepleri ve yanıt, ekip sohbeti, Sorvia Mail, bildirimler, tepsi ve kısayollar çalışıyor; yerel sunucuya karşı uçtan uca test edildi. Sunucu tarafı `sorvia-netweb` deposunda `masaustu-api` dalında, henüz canlıda değil. Kod imzalama sertifikası olmadığı için kurulumda SmartScreen uyarısı çıkar.
+Bağlanma, My Sorvia, görevler, takvim, destek talepleri ve yanıt, ekip sohbeti, Sorvia Mail, bildirimler, tepsi ve kısayollar çalışıyor; uçtan uca test edildi. Sunucu tarafı Sorvia.net v2.0.6 ile canlıda; personel kurulum dosyasını `https://sorvia.net/masaustu` adresinden indirir. Kod imzalama sertifikası olmadığı için kurulumda SmartScreen uyarısı çıkar.
+
+## Yeni sürüm yayınlama
+
+1. `package.json` sürümünü artır, `npm run dist`.
+2. `release/Sorvia-Desktop-Kurulum-<sürüm>.exe` dosyasını sunucuda `/var/lib/sorvia/storage/desktop/` altına `sorvia:srvgateway`, 644 ile koy.
+3. `SiteSetting` içindeki `desktop.release` kaydını sürüm, dosya, boyut ve SHA-256 ile güncelle (biçim: `docs/api-sozlesmesi.md`).
+
+Kurulu uygulamalar yeni sürümü 6 saat içinde bildirimle gösterir; indirme sayfası kaydı anında yansıtır.

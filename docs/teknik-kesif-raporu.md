@@ -146,10 +146,10 @@ srv-desktop/
 | --- | --- | --- |
 | 1 | Keşif raporu | Tamamlandı (bu belge) |
 | 2 | Tasarım sistemi, pencere, dock, başlatıcı, komut paleti, bildirim merkezi, ekranlar | Tamamlandı |
-| 3 | `/api/desktop/*`: cihaz bağlama, me, home, görevler, talepler, bildirimler, takvim | `masaustu-api` dalında, 89 kontrollük testle; canlıya alınmadı |
+| 3 | `/api/desktop/*`: cihaz bağlama, me, home, görevler, talepler, bildirimler, takvim | Canlıda (Sorvia.net v2.0.6, 29 Ekim 2026); 94 kontrollük test |
 | 4 | Sorvia Mail (IMAP/SMTP), ekip sohbeti, talebe yanıt | Tamamlandı; posta gerçek IMAP/SMTP sunucusuna karşı test edildi |
 | 5 | Tepsi, yerel bildirim, açılışta çalıştırma, güncelleme, kurulum paketi | Hazır; güncelleme şimdilik bildirim + indirme bağlantısı |
-| 6 | Uçtan uca testler, kod imzalama, dağıtım | Uçtan uca test hazır; imza sertifikası ve canlı dağıtım bekliyor |
+| 6 | Uçtan uca testler, kod imzalama, dağıtım | Uçtan uca test hazır; 0.1.0 sorvia.net/masaustu'da; imza sertifikası bekliyor |
 
 **Önizleme verisi kuralı:** Bağlanmadan tasarımı görmek için "Önizleme" modu var. Bu modda ekranın üstünde sürekli "Önizleme verisi" uyarısı görünür; önizleme verisi gerçek veriyle hiçbir zaman karışmaz ve bağlanınca tamamen kaldırılır.
 

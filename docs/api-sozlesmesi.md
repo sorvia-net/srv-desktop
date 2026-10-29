@@ -1,6 +1,6 @@
 # Masaüstü API sözleşmesi
 
-Sunucu: Sorvia.net, `src/app/api/desktop/*` (dal: `masaustu-api`). Tipler: `shared/contracts.ts`.
+Sunucu: Sorvia.net, `src/app/api/desktop/*` (v2.0.6 ile canlıda). Tipler: `shared/contracts.ts`.
 
 Tüm uçlar JSON döner ve `Cache-Control: no-store` taşır. Başarılı yanıtın gövdesi doğrudan veridir. Hata yanıtı `{ "error": "<kod>", "message": "<Türkçe açıklama>" }` biçimindedir ve HTTP durumu anlamlıdır (400, 401, 403, 404, 413, 429).
 
@@ -51,8 +51,22 @@ Görev panoları serbest metindir. Veritabanındaki varsayılan `general`, API'd
 Yeni bir kurulum dosyası yayınlandığında `SiteSetting` içine şu kayıt yazılır; uygulamalar 6 saatte bir bakar ve kullanıcıya bildirim gösterir. Adres yalnızca `https://sorvia.net` ya da alt alan adı olabilir.
 
 ```json
-{ "key": "desktop.release", "group": "desktop", "value": { "version": "0.2.0", "url": "https://sorvia.net/masaustu", "notes": "Kısa açıklama" } }
+{
+  "key": "desktop.release",
+  "group": "desktop",
+  "value": {
+    "version": "0.2.0",
+    "url": "https://sorvia.net/masaustu",
+    "notes": "Kısa açıklama",
+    "file": "desktop/Sorvia-Desktop-Kurulum-0.2.0.exe",
+    "size": 122282034,
+    "sha256": "<64 haneli özet>",
+    "publishedAt": "2026-11-01T09:00:00Z"
+  }
+}
 ```
+
+`file` yalnızca depolamadaki `desktop/` klasörünü gösterebilir. Personel `/masaustu` sayfasından indirir (`/masaustu/indir`, kaldığı yerden devam eder); müşteri hesapları sayfayı ve dosyayı göremez.
 
 ## Testler
 
