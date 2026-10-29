@@ -6,7 +6,7 @@ import type { AuthState } from "@shared/contracts";
 import { bridge } from "@/data/bridge";
 import { LogoMark } from "@/design/logo";
 import { Button } from "@/design/ui";
-import { WindowControls } from "@/shell/TitleBar";
+import { WindowControls } from "@/os/StatusBar";
 
 type Props = { auth: Extract<AuthState, { status: "signedOut" | "linking" }>; onChange: (state: AuthState) => void };
 

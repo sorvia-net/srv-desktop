@@ -53,6 +53,14 @@ export function Settings() {
           </div>
         </Group>
 
+        <Group title="Odak ve kilit" footer="Rahatsız etmeyin açıkken Windows bildirimleri susar; bildirimler merkezde birikmeye devam eder.">
+          <Toggle label="Rahatsız etmeyin" checked={prefs.doNotDisturb} onChange={(value) => session.setPrefs({ doNotDisturb: value })} />
+          <div className="flex items-center justify-between gap-4 px-5 py-3">
+            <span className="text-[14px] text-ink">Otomatik kilit</span>
+            <Segmented<string> size="sm" value={String(prefs.autoLockMinutes)} onChange={(value) => session.setPrefs({ autoLockMinutes: Number(value) })} options={[{ value: "0", label: "Kapalı" }, { value: "5", label: "5 dk" }, { value: "15", label: "15 dk" }, { value: "30", label: "30 dk" }]} />
+          </div>
+        </Group>
+
         <Group title="Görünüm">
           <div className="grid grid-cols-3 gap-4 px-5 py-4">
             {WALLPAPERS.map((item) => (
@@ -75,7 +83,10 @@ export function Settings() {
             <Shortcut keys={["Ctrl", "K"]} label="Komut paleti" />
             <Shortcut keys={["Ctrl", "Shift", "Space"]} label="Sorvia'yı her yerden aç" />
             <Shortcut keys={["Ctrl", "N"]} label="Yeni görev" />
-            <Shortcut keys={["Ctrl", "1–6"]} label="Modüller arasında geç" />
+            <Shortcut keys={["Ctrl", "1–9"]} label="Uygulamalar arasında geç" />
+            <Shortcut keys={["Ctrl", "H"]} label="Ana ekran" />
+            <Shortcut keys={["Ctrl", "Tab"]} label="Uygulama değiştirici" />
+            <Shortcut keys={["Ctrl", "L"]} label="Ekranı kilitle" />
             <Shortcut keys={["Alt", "←"]} label="Geri" />
           </div>
         </Group>

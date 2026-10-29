@@ -12,6 +12,10 @@ export const DEFAULT_PREFS: Preferences = {
   wallpaper: "ember",
   showRemoteImages: false,
   pollSeconds: 45,
+  doNotDisturb: false,
+  autoLockMinutes: 0,
+  homeLayout: null,
+  installed: null,
 };
 
 type Shape = {
@@ -66,7 +70,18 @@ function sanitizePrefs(input: Record<string, unknown>): Preferences {
   if (input.reduceMotion === "system" || input.reduceMotion === "on" || input.reduceMotion === "off") prefs.reduceMotion = input.reduceMotion;
   if (input.wallpaper === "ember" || input.wallpaper === "dusk" || input.wallpaper === "noir") prefs.wallpaper = input.wallpaper;
   if (typeof input.pollSeconds === "number" && Number.isFinite(input.pollSeconds)) prefs.pollSeconds = Math.min(600, Math.max(15, Math.round(input.pollSeconds)));
+  if (typeof input.doNotDisturb === "boolean") prefs.doNotDisturb = input.doNotDisturb;
+  if (typeof input.autoLockMinutes === "number" && [0, 5, 15, 30, 60].includes(input.autoLockMinutes)) prefs.autoLockMinutes = input.autoLockMinutes;
+  prefs.homeLayout = cleanLayout(input.homeLayout);
+  prefs.installed = Array.isArray(input.installed) ? [...new Set(input.installed.filter((item): item is string => typeof item === "string" && /^[a-z][a-z0-9-]{0,40}$/.test(item)))].slice(0, 100) : null;
   return prefs;
+}
+
+function cleanLayout(value: unknown): Preferences["homeLayout"] {
+  if (!value || typeof value !== "object") return null;
+  const ids = (list: unknown) => (Array.isArray(list) ? list.filter((item): item is string => typeof item === "string" && /^[a-z][a-z0-9-]{0,40}$/.test(item)).slice(0, 120) : []);
+  const layout = value as { grid?: unknown; dock?: unknown };
+  return { grid: ids(layout.grid), dock: ids(layout.dock).slice(0, 7) };
 }
 
 export function canEncrypt() {

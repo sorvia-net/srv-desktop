@@ -11,6 +11,7 @@ import { badgeImage } from "./badge";
 import { APP_ORIGIN, DEV_URL, IS_DEV } from "./config";
 import { mail } from "./mail";
 import { createNotifier, toast } from "./notifier";
+import { files } from "./files";
 import { store } from "./store";
 import { checkUpdate } from "./updates";
 
@@ -262,6 +263,27 @@ function registerIpc() {
   });
   on("window:close", () => win?.close());
   handle("window:isMaximized", () => win?.isMaximized() ?? false);
+  handle("window:capture", async () => {
+    if (!win || win.isMinimized()) return null;
+    const shot = await win.webContents.capturePage();
+    return shot.isEmpty() ? null : `data:image/jpeg;base64,${shot.resize({ width: 640 }).toJPEG(72).toString("base64")}`;
+  });
+
+  files.init({ emit: (transfer) => send("files:transfer", transfer), window: () => win });
+  handle("files:pick", (options) => files.pick(options));
+  handle("files:uploadMedia", (paths, options) => files.uploadMedia(paths, options));
+  handle("files:uploadDrive", (paths, options) => files.uploadDrive(paths, options));
+  handle("files:downloadDrive", (file, options) => files.downloadDrive(file, options));
+  handle("files:downloadMedia", (item, options) => files.downloadMedia(item, options));
+  handle("files:transfers", () => files.transfers());
+  handle("files:cancel", (id) => files.cancel(id));
+  handle("files:clearFinished", () => files.clearFinished());
+  handle("files:downloads", () => files.downloads());
+  handle("files:open", (path) => files.open(path));
+  on("files:reveal", (path) => files.reveal(path));
+  handle("files:forget", (id) => files.forget(id));
+  handle("files:usage", () => files.usage());
+  handle("files:clearCache", () => files.clearCache());
 
   handle("auth:state", () => auth.state);
   handle("auth:start", () => auth.start());
@@ -291,7 +313,7 @@ function registerIpc() {
   handle("system:openExternal", (url) => openSafe(url));
   handle("system:checkUpdate", () => checkUpdate());
   on("system:notify", (title, body) => {
-    if (typeof title === "string" && store.prefs().nativeNotifications) toast({ open: command, icon: () => image("icon.png") }, title.slice(0, 120), typeof body === "string" ? body : "", null);
+    if (typeof title === "string" && store.prefs().nativeNotifications && !store.prefs().doNotDisturb) toast({ open: command, icon: () => image("icon.png") }, title.slice(0, 120), typeof body === "string" ? body : "", null);
   });
   on("system:setBadge", (count) => setBadge(count));
 }
@@ -359,7 +381,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     mail.onNew((items) => {
       send("mail:new", items.length);
-      if (!store.prefs().nativeNotifications || (win?.isVisible() && win.isFocused())) return;
+      if (!store.prefs().nativeNotifications || store.prefs().doNotDisturb || (win?.isVisible() && win.isFocused())) return;
       const first = items[items.length - 1]!;
       toast({ open: command, icon: () => image("icon.png") }, items.length > 1 ? `${items.length} yeni e-posta` : `Yeni e-posta · ${first.from}`, first.subject, "go:mail");
       if (win && !win.isFocused()) win.flashFrame(true);

@@ -14,6 +14,10 @@ const DEFAULT_PREFS: Preferences = {
   wallpaper: "ember",
   showRemoteImages: false,
   pollSeconds: 45,
+  doNotDisturb: false,
+  autoLockMinutes: 0,
+  homeLayout: null,
+  installed: null,
 };
 
 function webBridge(): SorviaBridge {
@@ -24,13 +28,14 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.1.0",
+    version: "0.2.0",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
       close: () => undefined,
       isMaximized: async () => false,
       onMaximizeChange: () => () => undefined,
+      capture: async () => null,
     },
     auth: {
       state: async () => state,
@@ -90,6 +95,24 @@ function webBridge(): SorviaBridge {
       onCommand: () => () => undefined,
       setBadge: () => undefined,
       checkUpdate: async () => null,
+    },
+    files: {
+      pick: async () => [],
+      pathFor: () => "",
+      uploadMedia: async () => unavailable(),
+      uploadDrive: async () => unavailable(),
+      downloadDrive: async () => unavailable(),
+      downloadMedia: async () => unavailable(),
+      transfers: async () => [],
+      cancel: async () => undefined,
+      clearFinished: async () => undefined,
+      onTransfer: () => () => undefined,
+      downloads: async () => [],
+      open: async () => unavailable(),
+      reveal: () => undefined,
+      forget: async () => undefined,
+      usage: async () => ({ cache: 0, downloads: 0, downloadCount: 0 }),
+      clearCache: async () => 0,
     },
   };
 }

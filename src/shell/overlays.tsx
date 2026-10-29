@@ -8,12 +8,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppNotification, Priority, Task, TicketSummary } from "@shared/contracts";
 import { routeForNotification } from "@shared/routes";
 import { api } from "@/data/api";
+import { bridge } from "@/data/bridge";
 import { relative } from "@/data/format";
 import { invalidate, useQuery } from "@/data/query";
 import { Button, cn, Kbd, PRIORITY_LABEL, Segmented, Spinner } from "@/design/ui";
 
 import { useNav, useOverlay, useSession } from "./context";
-import { MODULES } from "./modules";
+import { Tile } from "@/os/icons";
+import { useModules, useCatalog } from "@/os/modules";
+import { available } from "@/os/registry";
+import { useOs } from "@/os/state";
 
 const spring = { type: "spring" as const, stiffness: 420, damping: 34 };
 
@@ -35,8 +39,11 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const tasks = useQuery<Task[]>("tasks:mine", () => api.tasks("mine"), { enabled: overlay.palette });
-  const tickets = useQuery<TicketSummary[]>("tickets:mine", () => api.tickets("mine"), { enabled: overlay.palette && session.user.modules.includes("tickets") });
+  const os = useOs();
+  const { installed } = useModules();
+  const catalog = useCatalog();
+  const tasks = useQuery<Task[]>("tasks:mine", () => api.tasks("mine"), { enabled: overlay.palette && installed.has("tasks") });
+  const tickets = useQuery<TicketSummary[]>("tickets:mine", () => api.tickets("mine"), { enabled: overlay.palette && installed.has("tickets") });
 
   useEffect(() => {
     if (overlay.palette) {
@@ -51,19 +58,33 @@ export function CommandPalette() {
       overlay.close();
       run();
     };
-    const modules = MODULES.filter((item) => session.user.modules.includes(item.id)).map<PaletteItem>((item) => ({
-      id: `m-${item.id}`,
-      group: "Modüller",
-      title: `${item.title}`,
-      hint: item.shortcut,
-      icon: <item.icon className="size-4" />,
-      run: done(() => nav.go(item.id)),
-    }));
+    const apps = catalog
+      .filter((item) => installed.has(item.id) && available(item, session.user))
+      .map<PaletteItem>((item) => ({
+        id: `m-${item.id}`,
+        group: item.kind === "app" ? "Uygulamalar" : "Bağlantılar",
+        title: item.title,
+        hint: item.subtitle,
+        icon: <Tile item={item} size={22} className="shadow-none" />,
+        run: done(() => (item.kind === "app" ? os.openApp(item.id) : void bridge.system.openExternal(item.url))),
+      }));
+    const store = catalog
+      .filter((item) => !installed.has(item.id) && available(item, session.user))
+      .map<PaletteItem>((item) => ({
+        id: `s-${item.id}`,
+        group: "Mağaza",
+        title: `${item.title} yükle`,
+        hint: item.subtitle,
+        icon: <Tile item={item} size={22} className="shadow-none" />,
+        run: done(() => os.openApp("store", { module: item.id })),
+      }));
+    const modules = [...apps, ...store];
     const actions: PaletteItem[] = [
       { id: "a-task", group: "Eylemler", title: "Yeni görev oluştur", hint: "Ctrl N", icon: <Plus className="size-4" />, run: () => overlay.open("quickTask") },
       ...(session.user.modules.includes("mail") ? [{ id: "a-mail", group: "Eylemler", title: "E-posta yaz", icon: <Mail className="size-4" />, run: done(() => { nav.go("mail"); overlay.setCompose({}); }) }] : []),
       { id: "a-notes", group: "Eylemler", title: "Bildirimleri göster", icon: <Bell className="size-4" />, run: () => overlay.open("notifications") },
-      { id: "a-launch", group: "Eylemler", title: "Uygulama başlatıcıyı aç", icon: <Sparkles className="size-4" />, run: () => overlay.open("launcher") },
+      { id: "a-home", group: "Eylemler", title: "Ana ekrana dön", hint: "Ctrl H", icon: <Sparkles className="size-4" />, run: done(os.goHome) },
+      { id: "a-lock", group: "Eylemler", title: "Ekranı kilitle", hint: "Ctrl L", icon: <LogOut className="size-4" />, run: done(os.lock) },
       { id: "a-refresh", group: "Eylemler", title: "Her şeyi yenile", icon: <RefreshCw className="size-4" />, run: done(() => invalidate("")) },
       { id: "a-settings", group: "Eylemler", title: "Ayarları aç", hint: "Ctrl ,", icon: <Settings className="size-4" />, run: done(() => nav.go("settings")) },
       { id: "a-logout", group: "Eylemler", title: session.preview ? "Önizlemeden çık" : "Oturumu kapat", icon: <LogOut className="size-4" />, run: done(session.logout) },
@@ -85,9 +106,9 @@ export function CommandPalette() {
       run: done(() => nav.go("tickets", { id: item.id })),
     }));
     const all = [...modules, ...actions, ...taskItems, ...ticketItems];
-    if (!query.trim()) return [...modules.slice(0, 4), ...actions.slice(0, 3), ...taskItems.slice(0, 3), ...ticketItems.slice(0, 3)];
+    if (!query.trim()) return [...apps.slice(0, 6), ...actions.slice(0, 3), ...taskItems.slice(0, 3), ...ticketItems.slice(0, 2)];
     return all.filter((item) => matches(`${item.title} ${item.hint ?? ""} ${item.group}`, query)).slice(0, 14);
-  }, [query, tasks.data, tickets.data, session, nav, overlay]);
+  }, [query, tasks.data, tickets.data, session, nav, overlay, os, installed, catalog]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -113,7 +134,7 @@ export function CommandPalette() {
         <motion.div className="fixed inset-0 z-[70] flex justify-center bg-black/35 pt-[13vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={overlay.close}>
           <motion.div
             role="dialog"
-            aria-label="Komut paleti"
+            aria-label="Arama"
             className="glass-float h-fit w-[640px] max-w-[calc(100vw-48px)] overflow-hidden rounded-[26px]"
             initial={{ opacity: 0, scale: 0.94, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -128,7 +149,7 @@ export function CommandPalette() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={onKey}
-                placeholder="Görev, talep ya da komut ara…"
+                placeholder="Uygulama, görev, talep ya da komut ara…"
                 className="h-[60px] flex-1 bg-transparent text-[18px] text-ink outline-none placeholder:text-ink-4"
               />
               <Kbd>Esc</Kbd>
@@ -167,77 +188,13 @@ export function CommandPalette() {
   );
 }
 
-export function Launcher({ badges }: { badges: Record<string, number> }) {
-  const overlay = useOverlay();
-  const nav = useNav();
-  const session = useSession();
-  const [query, setQuery] = useState("");
-  const items = MODULES.filter((item) => session.user.modules.includes(item.id) && (!query || matches(`${item.title} ${item.subtitle}`, query)));
-
-  useEffect(() => {
-    if (overlay.launcher) setQuery("");
-  }, [overlay.launcher]);
-
-  return (
-    <AnimatePresence>
-      {overlay.launcher && (
-        <motion.div
-          className="fixed inset-0 z-[60] flex flex-col items-center bg-[#0c0908]/55 px-10 pt-[11vh] backdrop-blur-[38px]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.22 }}
-          onMouseDown={overlay.close}
-          onKeyDown={(event) => event.key === "Escape" && overlay.close()}
-        >
-          <motion.div initial={{ scale: 1.06, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.04, opacity: 0 }} transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }} className="flex w-full max-w-[860px] flex-col items-center" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="glass-float flex h-11 w-[340px] items-center gap-2.5 rounded-full px-4">
-              <Search className="size-4 text-ink-3" />
-              <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ara" className="flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-ink-4" />
-            </div>
-            <div className="mt-14 grid grid-cols-4 gap-x-14 gap-y-11 sm:grid-cols-4">
-              {items.map((item, index) => (
-                <motion.button
-                  key={item.id}
-                  initial={{ opacity: 0, y: 14, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.04 * index, ...spring }}
-                  onClick={() => {
-                    nav.go(item.id);
-                    overlay.close();
-                  }}
-                  className="focus-ring group flex w-[104px] flex-col items-center gap-3 rounded-[26px] outline-none"
-                >
-                  <span className={cn("relative flex size-[92px] items-center justify-center rounded-[26px] bg-gradient-to-br text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_18px_40px_-14px_rgba(0,0,0,0.75)] transition-transform duration-300 ease-[var(--ease-out)] group-hover:-translate-y-1 group-active:scale-95", item.tile)}>
-                    <span className="absolute inset-0 rounded-[26px] bg-[linear-gradient(180deg,rgba(255,255,255,0.28),transparent_45%)]" />
-                    <item.icon className="relative size-[38px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" strokeWidth={1.8} />
-                    {(badges[item.id] ?? 0) > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-[24px] min-w-[24px] items-center justify-center rounded-full bg-[#ff3b30] px-1.5 text-[12px] font-bold text-white shadow-[0_4px_10px_rgba(0,0,0,0.4)]">{badges[item.id]}</span>}
-                  </span>
-                  <span className="text-[13px] font-medium text-ink">{item.title}</span>
-                </motion.button>
-              ))}
-            </div>
-            <div className="mt-16 flex gap-3">
-              <Button variant="glass" onClick={() => overlay.open("quickTask")}>
-                <Plus /> Yeni görev
-              </Button>
-              <Button variant="glass" onClick={() => overlay.open("palette")}>
-                <Search /> Komut paleti <Kbd>Ctrl K</Kbd>
-              </Button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 const NOTE_ICON: Record<string, ReactNode> = {
   ticket: <LifeBuoy className="size-4" />,
   task: <ListChecks className="size-4" />,
   meeting: <CalendarDays className="size-4" />,
   chat: <MessagesSquare className="size-4" />,
   mail: <Mail className="size-4" />,
+  career: <Sparkles className="size-4" />,
 };
 
 export function NotificationCenter() {
@@ -271,7 +228,7 @@ export function NotificationCenter() {
       {overlay.notifications && (
         <motion.div className="fixed inset-0 z-[55]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={overlay.close}>
           <motion.aside
-            className="glass-float absolute bottom-4 right-4 top-[76px] flex w-[400px] flex-col overflow-hidden rounded-[28px]"
+            className="glass-sheet absolute bottom-4 right-4 top-[50px] flex w-[400px] flex-col overflow-hidden rounded-[28px]"
             initial={{ x: 40, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 30, opacity: 0 }}
@@ -445,7 +402,7 @@ export function Toasts() {
 
 export function PreviewBanner({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="no-drag pointer-events-auto absolute left-1/2 top-[66px] z-30 -translate-x-1/2">
+    <div className="no-drag pointer-events-auto absolute left-1/2 top-[50px] z-[61] -translate-x-1/2">
       <div className="flex items-center gap-3 rounded-full border border-warn/30 bg-[#3a2b12]/80 px-4 py-1.5 text-[12px] text-[#ffd58a] shadow-[0_8px_24px_-10px_rgba(0,0,0,0.7)] backdrop-blur-xl">
         <span className="size-1.5 rounded-full bg-warn" />
         Önizleme modu · gösterilen veriler örnektir, gerçek değildir

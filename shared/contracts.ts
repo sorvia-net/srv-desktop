@@ -1,6 +1,6 @@
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "settings";
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings";
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
@@ -161,7 +161,121 @@ export type Preferences = {
   wallpaper: "ember" | "dusk" | "noir";
   showRemoteImages: boolean;
   pollSeconds: number;
+  doNotDisturb: boolean;
+  autoLockMinutes: number;
+  homeLayout: HomeLayout | null;
+  installed: string[] | null;
 };
+
+export type HomeLayout = { grid: string[]; dock: string[] };
+
+export type StoreModule = {
+  id: string;
+  kind: "native" | "web";
+  title: string;
+  subtitle: string;
+  description: string;
+  category: string;
+  icon: string;
+  tile: string | null;
+  url: string | null;
+  folder: string | null;
+  permission: string | null;
+  role: "ADMIN" | "OWNER" | null;
+  features: string[];
+  version: string;
+};
+
+export type StoreCatalog = { featured: string | null; modules: StoreModule[]; notice: string | null };
+
+export type MediaItem = {
+  id: string;
+  kind: string;
+  url: string;
+  path: string;
+  fileName: string;
+  alt: string | null;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number;
+  mimeType: string | null;
+  folder: string;
+  createdAt: string;
+  uploader: Person | null;
+  usedIn: string[] | null;
+};
+
+export type MediaPage = {
+  items: MediaItem[];
+  nextCursor: string | null;
+  total: number;
+  library: { count: number; bytes: number };
+  folders: { folder: string; count: number }[];
+  canUpload: boolean;
+  canDelete: boolean;
+};
+
+export type DriveFolder = { id: string; name: string; parentId: string | null; color: string | null; starred: boolean; createdAt: string; updatedAt: string; files: number; bytes: number };
+
+export type DriveFile = {
+  id: string;
+  name: string;
+  folderId: string | null;
+  size: number;
+  mimeType: string;
+  currentVersion: number;
+  versions: number;
+  starred: boolean;
+  tags: string[];
+  hasNote: boolean;
+  shares: number;
+  downloads: number;
+  createdAt: string;
+  updatedAt: string;
+  uploadedBy: string | null;
+};
+
+export type DriveTrashItem = { type: "file" | "folder"; id: string; name: string; trashedAt: string; size: number; files: number; origin: string; purgeAt: string };
+
+export type DriveMode = "folder" | "search" | "starred" | "recent" | "shared" | "trash";
+
+export type DriveView = {
+  mode: DriveMode;
+  folderId: string | null;
+  q: string;
+  path: { id: string; name: string }[];
+  folders: DriveFolder[];
+  tree: { id: string; name: string; parentId: string | null }[];
+  files: DriveFile[];
+  trash: DriveTrashItem[];
+  stats: { used: number; quota: number; files: number; folders: number; trashBytes: number; shares: number; diskFree: number | null; diskTotal: number | null };
+  settings: { quotaGb: number; maxFileGb: number; trashDays: number; keepVersions: number };
+};
+
+export type StorageCategory = { id: string; label: string; bytes: number; count: number | null; color: string };
+
+export type StorageOverview = { categories: StorageCategory[]; disk: { free: number; total: number } | null; scope: "server" | "limited"; generatedAt: string };
+
+export type TransferStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+
+export type Transfer = {
+  id: string;
+  kind: "upload" | "download";
+  target: "media" | "drive";
+  name: string;
+  size: number;
+  done: number;
+  status: TransferStatus;
+  error: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  path: string | null;
+  resultId: string | null;
+};
+
+export type LocalDownload = { id: string; name: string; path: string; size: number; source: "drive" | "media" | "mail"; savedAt: string; exists: boolean };
+
+export type LocalUsage = { cache: number; downloads: number; downloadCount: number };
 
 export type SorviaBridge = {
   platform: "win32" | "darwin" | "linux" | "web";
@@ -172,6 +286,7 @@ export type SorviaBridge = {
     close(): void;
     isMaximized(): Promise<boolean>;
     onMaximizeChange(listener: (maximized: boolean) => void): () => void;
+    capture(): Promise<string | null>;
   };
   auth: {
     state(): Promise<AuthState>;
@@ -211,5 +326,23 @@ export type SorviaBridge = {
     onCommand(listener: (command: string) => void): () => void;
     setBadge(count: number): void;
     checkUpdate(): Promise<UpdateInfo | null>;
+  };
+  files: {
+    pick(options: { multiple: boolean; images: boolean }): Promise<string[]>;
+    pathFor(file: File): string;
+    uploadMedia(paths: string[], options: { folder: string | null }): Promise<ApiResult<string[]>>;
+    uploadDrive(paths: string[], options: { folderId: string | null }): Promise<ApiResult<string[]>>;
+    downloadDrive(file: { id: string; name: string; size: number }, options: { ask: boolean; open: boolean }): Promise<ApiResult<string | null>>;
+    downloadMedia(item: { url: string; fileName: string; size: number }, options: { ask: boolean }): Promise<ApiResult<string | null>>;
+    transfers(): Promise<Transfer[]>;
+    cancel(id: string): Promise<void>;
+    clearFinished(): Promise<void>;
+    onTransfer(listener: (transfer: Transfer) => void): () => void;
+    downloads(): Promise<LocalDownload[]>;
+    open(path: string): Promise<ApiResult<true>>;
+    reveal(path: string): void;
+    forget(id: string): Promise<void>;
+    usage(): Promise<LocalUsage>;
+    clearCache(): Promise<number>;
   };
 };

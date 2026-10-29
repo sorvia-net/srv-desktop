@@ -93,5 +93,7 @@ export function plural(count: number, word: string) {
 export function bytes(size: number) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(size < 10_240 ? 1 : 0)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  if (size < 1024 ** 3) return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  if (size < 1024 ** 4) return `${(size / 1024 ** 3).toFixed(1)} GB`;
+  return `${(size / 1024 ** 4).toFixed(2)} TB`;
 }

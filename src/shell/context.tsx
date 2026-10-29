@@ -5,7 +5,7 @@ import type { AuthState, DesktopUser, ModuleId, Preferences } from "@shared/cont
 
 export type Route = { screen: ModuleId; params?: Record<string, string> };
 
-type NavValue = {
+export type NavValue = {
   route: Route;
   go: (screen: ModuleId, params?: Record<string, string>) => void;
   back: () => void;
@@ -14,15 +14,16 @@ type NavValue = {
   canForward: boolean;
 };
 
+type Overlay = "palette" | "notifications" | "quickTask";
+
 type OverlayValue = {
   palette: boolean;
-  launcher: boolean;
   notifications: boolean;
   quickTask: boolean;
   compose: { to?: string; subject?: string; text?: string; inReplyTo?: string | null } | null;
-  open: (overlay: "palette" | "launcher" | "notifications" | "quickTask") => void;
+  open: (overlay: Overlay) => void;
   close: () => void;
-  toggle: (overlay: "palette" | "launcher" | "notifications") => void;
+  toggle: (overlay: Overlay) => void;
   setCompose: (value: OverlayValue["compose"]) => void;
 };
 
@@ -40,39 +41,22 @@ type SessionValue = {
   can: (permission: string) => boolean;
 };
 
-const NavContext = createContext<NavValue | null>(null);
+export const NavContext = createContext<NavValue | null>(null);
 const OverlayContext = createContext<OverlayValue | null>(null);
 const SessionContext = createContext<SessionValue | null>(null);
 
-export function NavProvider({ children }: { children: ReactNode }) {
-  const [history, setHistory] = useState<{ stack: Route[]; index: number }>({ stack: [{ screen: "home" }], index: 0 });
-  const go = useCallback((screen: ModuleId, params?: Record<string, string>) => {
-    setHistory((current) => {
-      const active = current.stack[current.index]!;
-      if (active.screen === screen && JSON.stringify(active.params ?? {}) === JSON.stringify(params ?? {})) return current;
-      const stack = [...current.stack.slice(0, current.index + 1), { screen, params }].slice(-40);
-      return { stack, index: stack.length - 1 };
-    });
-  }, []);
-  const back = useCallback(() => setHistory((current) => ({ ...current, index: Math.max(0, current.index - 1) })), []);
-  const forward = useCallback(() => setHistory((current) => ({ ...current, index: Math.min(current.stack.length - 1, current.index + 1) })), []);
-  const value = useMemo<NavValue>(
-    () => ({ route: history.stack[history.index]!, go, back, forward, canBack: history.index > 0, canForward: history.index < history.stack.length - 1 }),
-    [history, go, back, forward],
-  );
-  return <NavContext.Provider value={value}>{children}</NavContext.Provider>;
-}
+const CLOSED = { palette: false, notifications: false, quickTask: false };
 
 export function OverlayProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState({ palette: false, launcher: false, notifications: false, quickTask: false });
+  const [state, setState] = useState(CLOSED);
   const [compose, setCompose] = useState<OverlayValue["compose"]>(null);
   const value = useMemo<OverlayValue>(
     () => ({
       ...state,
       compose,
-      open: (overlay) => setState({ palette: false, launcher: false, notifications: false, quickTask: false, [overlay]: true }),
-      close: () => setState({ palette: false, launcher: false, notifications: false, quickTask: false }),
-      toggle: (overlay) => setState((current) => ({ palette: false, launcher: false, notifications: false, quickTask: false, [overlay]: !current[overlay] })),
+      open: (overlay) => setState({ ...CLOSED, [overlay]: true }),
+      close: () => setState(CLOSED),
+      toggle: (overlay) => setState((current) => ({ ...CLOSED, [overlay]: !current[overlay] })),
       setCompose,
     }),
     [state, compose],
@@ -96,7 +80,7 @@ export function SessionProvider({ value, children }: { value: Omit<SessionValue,
 
 export function useNav() {
   const value = useContext(NavContext);
-  if (!value) throw new Error("NavProvider eksik");
+  if (!value) throw new Error("NavContext eksik");
   return value;
 }
 

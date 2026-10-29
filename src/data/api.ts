@@ -1,5 +1,6 @@
 import type {
-  ApiResult, AppNotification, CalendarEvent, ChatChannel, ChatMessage, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, Priority, Task, TicketDetail, TicketSummary,
+  ApiResult, AppNotification, CalendarEvent, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
+  TicketDetail, TicketSummary,
 } from "@shared/contracts";
 
 import { bridge } from "./bridge";
@@ -61,6 +62,22 @@ export const api = {
   channels: () => get<ChatChannel[]>("/api/desktop/chat", undefined, () => preview.channels()),
   messages: (channelId: string) => get<ChatMessage[]>(`/api/desktop/chat/${channelId}`, undefined, () => preview.messages(channelId)),
   postMessage: (channelId: string, body: string) => send<ChatMessage>("POST", `/api/desktop/chat/${channelId}`, { body }, () => preview.post(channelId, body)),
+  store: () => get<StoreCatalog>("/api/desktop/store", undefined, () => preview.store()),
+};
+
+export const galleryApi = {
+  list: (params: { q?: string; folder?: string; cursor?: string }) => get<MediaPage>("/api/desktop/media", params, () => preview.media(params)),
+  update: (id: string, patch: Partial<Pick<MediaItem, "alt" | "folder" | "fileName">>) => send<MediaItem>("PATCH", `/api/desktop/media/${id}`, patch, () => preview.updateMedia(id, patch)),
+  remove: (id: string, force: boolean) => send<{ deleted: boolean; places: string[] }>("DELETE", `/api/desktop/media/${id}`, { force }, () => preview.removeMedia(id)),
+};
+
+export type DriveAction = { action: "rename" | "move" | "star" | "unstar" | "trash" | "restore" | "purge" | "empty-trash"; fileIds?: string[]; folderIds?: string[]; targetId?: string | null; kind?: "file" | "folder"; id?: string; name?: string };
+
+export const filesApi = {
+  overview: () => get<StorageOverview>("/api/desktop/storage", undefined, () => preview.storage()),
+  drive: (params: { folder?: string; mode?: string; q?: string }) => get<DriveView>("/api/desktop/drive", params, () => preview.drive(params)),
+  createFolder: (parentId: string | null, name: string) => send<{ id: string }>("POST", "/api/desktop/drive/folders", { parentId, name }, () => preview.createFolder(parentId, name)),
+  act: (body: DriveAction) => send<{ message: string | null }>("POST", "/api/desktop/drive/items", body, () => preview.driveAction(body)),
 };
 
 export const mailApi = {

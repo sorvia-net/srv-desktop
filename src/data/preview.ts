@@ -1,4 +1,5 @@
 import type {
+  DriveFile, DriveFolder, DriveView, MediaItem, MediaPage, StorageOverview, StoreCatalog,
   AppNotification, CalendarEvent, ChatChannel, ChatMessage, DesktopUser, HomeSummary, MailFolder, MailMessage, MailSummary, Person, Task, TicketDetail, TicketSummary,
 } from "@shared/contracts";
 
@@ -33,8 +34,8 @@ export const previewUser: DesktopUser = {
   role: "SUPPORT",
   roleLabel: "Destek",
   title: "Müşteri Destek Uzmanı",
-  permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view"],
-  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "settings"],
+  permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view", "media.view", "media.upload", "media.delete"],
+  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings"],
   timeZone: "Europe/Istanbul",
   memberSince: at(-410, 9),
 };
@@ -180,6 +181,77 @@ function summaryOf(item: TicketDetail): TicketSummary {
   return rest;
 }
 
+
+const PALETTES = [
+  ["#ff9a3d", "#ff5e3a", "#ffd166"],
+  ["#4facfe", "#00f2fe", "#a18cd1"],
+  ["#43e97b", "#38f9d7", "#2c7a7b"],
+  ["#fa709a", "#fee140", "#ff8a65"],
+  ["#a18cd1", "#fbc2eb", "#6a5acd"],
+  ["#f6d365", "#fda085", "#e76f51"],
+  ["#30cfd0", "#330867", "#5ee7df"],
+  ["#ff6a88", "#ff99ac", "#c2185b"],
+  ["#89f7fe", "#66a6ff", "#1e3a8a"],
+];
+
+function art(index: number, label: string) {
+  const [a, b, c] = PALETTES[index % PALETTES.length]!;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='640' height='480' viewBox='0 0 640 480'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='${a}'/><stop offset='1' stop-color='${b}'/></linearGradient></defs><rect width='640' height='480' fill='url(#g)'/><circle cx='${120 + (index * 53) % 400}' cy='${140 + (index * 37) % 200}' r='${90 + (index * 13) % 60}' fill='${c}' opacity='0.55'/><circle cx='${460 - (index * 29) % 300}' cy='${330 - (index * 17) % 160}' r='${60 + (index * 11) % 50}' fill='white' opacity='0.22'/><text x='32' y='446' font-family='Segoe UI, sans-serif' font-size='30' font-weight='600' fill='white' opacity='0.9'>${label}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+const MEDIA_NAMES = [
+  ["urun-kapagi-uber.png", "/urunler"], ["blog-kapak-ekim.png", "/blog"], ["discord-bot-tanitim.png", "/urunler"], ["fivem-paket.png", "/urunler"], ["kampanya-cuma.png", "/kampanya"], ["ekip-fotografi.png", "/"],
+  ["logo-koyu.png", "/marka"], ["logo-acik.png", "/marka"], ["mc-eklenti-ekran-1.png", "/urunler"], ["mc-eklenti-ekran-2.png", "/urunler"], ["referans-kuzey.png", "/referanslar"], ["blog-kapak-guvenlik.png", "/blog"],
+  ["hizmet-web.png", "/hizmetler"], ["hizmet-bot.png", "/hizmetler"], ["sss-gorsel.png", "/"], ["partner-ada.png", "/partnerler"], ["store-sweatshirt.png", "/magaza"], ["kampanya-yilbasi.png", "/kampanya"],
+] as const;
+
+let media: MediaItem[] = MEDIA_NAMES.map(([name, folder], index) => ({
+  id: `m${index + 1}`,
+  kind: "IMAGE",
+  url: art(index, name.replace(/\.png$/, "").replace(/-/g, " ")),
+  path: `/media/2026/10/${name}`,
+  fileName: name,
+  alt: index % 3 === 0 ? null : `${name.replace(/\.png$/, "").replace(/-/g, " ")} görseli`,
+  width: 1600,
+  height: 1200,
+  sizeBytes: 180_000 + index * 41_337,
+  mimeType: "image/png",
+  folder,
+  createdAt: ago(index * 9 * HOUR),
+  uploader: index % 2 ? people.ece! : people.mert!,
+  usedIn: index % 4 === 0 ? ["Ürün kapağı"] : index % 5 === 0 ? ["Blog kapağı"] : [],
+}));
+
+const driveFolders: DriveFolder[] = [
+  { id: "f-sozlesme", name: "Sözleşmeler", parentId: null, color: "blue", starred: true, createdAt: ago(40 * DAY), updatedAt: ago(2 * DAY), files: 3, bytes: 3_400_000 },
+  { id: "f-finans", name: "Finans", parentId: null, color: "green", starred: false, createdAt: ago(60 * DAY), updatedAt: ago(DAY), files: 2, bytes: 1_900_000 },
+  { id: "f-marka", name: "Marka", parentId: null, color: "orange", starred: false, createdAt: ago(80 * DAY), updatedAt: ago(9 * DAY), files: 2, bytes: 12_400_000 },
+  { id: "f-yedek", name: "Yedekler", parentId: null, color: "slate", starred: false, createdAt: ago(20 * DAY), updatedAt: ago(3 * HOUR), files: 1, bytes: 412_000_000 },
+];
+
+function driveFile(id: string, name: string, folderId: string | null, size: number, mimeType: string, days: number, starred = false): DriveFile {
+  return { id, name, folderId, size, mimeType, currentVersion: 1, versions: 1, starred, tags: [], hasNote: false, shares: 0, downloads: 2, createdAt: ago(days * DAY), updatedAt: ago(days * DAY), uploadedBy: previewUserName() };
+}
+
+function previewUserName() {
+  return "Deniz Arslan";
+}
+
+let driveFiles: DriveFile[] = [
+  driveFile("d1", "Hizmet sözleşmesi - Kuzey Yazılım.pdf", "f-sozlesme", 1_240_000, "application/pdf", 3, true),
+  driveFile("d2", "Gizlilik sözleşmesi şablonu.docx", "f-sozlesme", 860_000, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 12),
+  driveFile("d3", "Ortaklık protokolü.pdf", "f-sozlesme", 1_300_000, "application/pdf", 30),
+  driveFile("d4", "Ekim gelir gider.xlsx", "f-finans", 640_000, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 1),
+  driveFile("d5", "Vergi beyannamesi Q3.pdf", "f-finans", 1_260_000, "application/pdf", 18),
+  driveFile("d6", "Sorvia logo paketi.zip", "f-marka", 11_800_000, "application/zip", 9),
+  driveFile("d7", "Marka renkleri.png", "f-marka", 600_000, "image/png", 9),
+  driveFile("d8", "veritabani-2026-10-28.dump", "f-yedek", 412_000_000, "application/octet-stream", 0),
+  driveFile("d9", "Şirket bilgileri.txt", null, 4_200, "text/plain", 2, true),
+];
+
+let trashed: DriveFile[] = [driveFile("d10", "Eski teklif.pdf", null, 320_000, "application/pdf", 6)];
+
 export const preview = {
   home(): HomeSummary {
     const open = tasks.filter((item) => item.status !== "done");
@@ -256,5 +328,98 @@ export const preview = {
     const item = mails.find((entry) => entry.uid === uid) ?? null;
     if (item) item.seen = true;
     return item;
+  },
+  store(): StoreCatalog {
+    return {
+      featured: "mail",
+      notice: null,
+      modules: [
+        { id: "web-wiki", kind: "web", title: "Ekip Wiki", subtitle: "İç bilgi bankası", description: "Süreçler, nöbet notları ve ekip rehberleri tek yerde.", category: "Verimlilik", icon: "BookOpen", tile: "linear-gradient(160deg,#fcd34d 0%,#f97316 100%)", url: "https://sorvia.net/admin/dokumanlar", folder: "folder-links", permission: null, role: null, features: ["Arama", "Kategoriler"], version: "web" },
+        { id: "web-reports", kind: "web", title: "Raporlar", subtitle: "Satış ve destek raporları", description: "Haftalık satış, destek ve trafik raporları.", category: "Yönetim", icon: "ChartColumn", tile: "linear-gradient(160deg,#a5f3fc 0%,#0891b2 100%)", url: "https://sorvia.net/admin/analitik", folder: "folder-admin", permission: null, role: "ADMIN", features: ["Grafikler"], version: "web" },
+      ],
+    };
+  },
+  media(params: { q?: string; folder?: string; cursor?: string }): MediaPage {
+    const q = (params.q ?? "").toLocaleLowerCase("tr");
+    const items = media.filter((item) => (!params.folder || item.folder === params.folder) && (!q || item.fileName.toLocaleLowerCase("tr").includes(q) || (item.alt ?? "").toLocaleLowerCase("tr").includes(q)));
+    const folders = [...new Set(media.map((item) => item.folder))].sort().map((folder) => ({ folder, count: media.filter((item) => item.folder === folder).length }));
+    return { items, nextCursor: null, total: items.length, library: { count: media.length, bytes: media.reduce((sum, item) => sum + item.sizeBytes, 0) }, folders, canUpload: true, canDelete: true };
+  },
+  updateMedia(id: string, patch: Partial<Pick<MediaItem, "alt" | "folder" | "fileName">>) {
+    media = media.map((item) => (item.id === id ? { ...item, ...patch } : item));
+    return media.find((item) => item.id === id) ?? null;
+  },
+  removeMedia(id: string) {
+    media = media.filter((item) => item.id !== id);
+    return { deleted: true, places: [] };
+  },
+  storage(): StorageOverview {
+    return {
+      categories: [
+        { id: "drive", label: "Kurucu deposu", bytes: driveFiles.reduce((sum, item) => sum + item.size, 0), count: driveFiles.length, color: "#bf5af2" },
+        { id: "releases", label: "Ürün dosyaları", bytes: 2_840_000_000, count: 64, color: "#ff9f0a" },
+        { id: "database", label: "Veritabanı", bytes: 412_000_000, count: null, color: "#ffd60a" },
+        { id: "media", label: "Galeri", bytes: media.reduce((sum, item) => sum + item.sizeBytes, 0), count: media.length, color: "#5ac8fa" },
+        { id: "desktop", label: "Masaüstü kurulumları", bytes: 122_000_000, count: 1, color: "#30d158" },
+        { id: "bugs", label: "Hata ekleri", bytes: 38_000_000, count: 41, color: "#ff453a" },
+        { id: "tmp", label: "Geçici dosyalar", bytes: 6_200_000, count: 3, color: "#8e8e93" },
+      ],
+      disk: { total: 98 * 1024 ** 3, free: 82 * 1024 ** 3 },
+      scope: "server",
+      generatedAt: new Date().toISOString(),
+    };
+  },
+  drive(params: { folder?: string; mode?: string; q?: string }): DriveView {
+    const q = (params.q ?? "").trim().toLocaleLowerCase("tr");
+    const mode = q ? "search" : params.mode === "starred" || params.mode === "recent" || params.mode === "trash" ? params.mode : "folder";
+    const folderId = mode === "folder" && params.folder && driveFolders.some((item) => item.id === params.folder) ? params.folder : null;
+    const path = folderId ? [{ id: folderId, name: driveFolders.find((item) => item.id === folderId)!.name }] : [];
+    const files =
+      mode === "search" ? driveFiles.filter((item) => item.name.toLocaleLowerCase("tr").includes(q))
+      : mode === "starred" ? driveFiles.filter((item) => item.starred)
+      : mode === "recent" ? [...driveFiles].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 12)
+      : mode === "trash" ? []
+      : driveFiles.filter((item) => item.folderId === folderId);
+    const folders = mode === "folder" ? driveFolders.filter((item) => item.parentId === folderId) : mode === "starred" ? driveFolders.filter((item) => item.starred) : [];
+    const used = driveFiles.reduce((sum, item) => sum + item.size, 0);
+    return {
+      mode,
+      folderId,
+      q,
+      path,
+      folders,
+      tree: driveFolders.map((item) => ({ id: item.id, name: item.name, parentId: item.parentId })),
+      files,
+      trash: mode === "trash" ? trashed.map((item) => ({ type: "file" as const, id: item.id, name: item.name, trashedAt: ago(2 * DAY), size: item.size, files: 1, origin: "Depo", purgeAt: at(28, 12) })) : [],
+      stats: { used, quota: 50 * 1024 ** 3, files: driveFiles.length, folders: driveFolders.length, trashBytes: trashed.reduce((sum, item) => sum + item.size, 0), shares: 1, diskFree: 82 * 1024 ** 3, diskTotal: 98 * 1024 ** 3 },
+      settings: { quotaGb: 50, maxFileGb: 5, trashDays: 30, keepVersions: 20 },
+    };
+  },
+  createFolder(parentId: string | null, name: string) {
+    const id = `f-${Date.now()}`;
+    driveFolders.push({ id, name, parentId, color: null, starred: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), files: 0, bytes: 0 });
+    return { id };
+  },
+  driveAction(body: { action: string; fileIds?: string[]; folderIds?: string[]; targetId?: string | null; id?: string; name?: string; kind?: string }) {
+    const ids = new Set(body.fileIds ?? []);
+    if (body.action === "rename" && body.id && body.name) {
+      driveFiles = driveFiles.map((item) => (item.id === body.id ? { ...item, name: body.name! } : item));
+      driveFolders.forEach((item) => {
+        if (item.id === body.id) item.name = body.name!;
+      });
+    } else if (body.action === "star" || body.action === "unstar") {
+      driveFiles = driveFiles.map((item) => (ids.has(item.id) ? { ...item, starred: body.action === "star" } : item));
+    } else if (body.action === "move") {
+      driveFiles = driveFiles.map((item) => (ids.has(item.id) ? { ...item, folderId: body.targetId ?? null } : item));
+    } else if (body.action === "trash") {
+      trashed = [...trashed, ...driveFiles.filter((item) => ids.has(item.id))];
+      driveFiles = driveFiles.filter((item) => !ids.has(item.id));
+    } else if (body.action === "restore") {
+      driveFiles = [...driveFiles, ...trashed.filter((item) => ids.has(item.id))];
+      trashed = trashed.filter((item) => !ids.has(item.id));
+    } else if (body.action === "purge" || body.action === "empty-trash") {
+      trashed = body.action === "empty-trash" ? [] : trashed.filter((item) => !ids.has(item.id));
+    }
+    return { message: null };
   },
 };

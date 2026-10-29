@@ -244,3 +244,23 @@ button {
     transform: scale(1.04);
   }
 }
+
+@keyframes jiggle {
+  0% { transform: rotate(-1.6deg); }
+  50% { transform: rotate(1.6deg); }
+  100% { transform: rotate(-1.6deg); }
+}
+
+.jiggle {
+  animation: jiggle 0.28s ease-in-out infinite;
+}
+
+.jiggle:nth-child(2n) {
+  animation-delay: -0.14s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jiggle {
+    animation: none;
+  }
+}

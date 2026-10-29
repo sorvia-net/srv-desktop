@@ -39,7 +39,7 @@ export function createNotifier(deps: Deps) {
       if (newest && (!last || newest > last)) store.setLastNotificationAt(newest);
       if (!last) return;
       const fresh = items.filter((item) => item.createdAt > last).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      if (!fresh.length || !store.prefs().nativeNotifications || deps.focused()) return;
+      if (!fresh.length || !store.prefs().nativeNotifications || store.prefs().doNotDisturb || deps.focused()) return;
       for (const item of fresh.slice(-3)) toast(deps, item.title, item.body ?? "", commandForNotification(item));
       if (fresh.length > 3) toast(deps, "Sorvia", `${fresh.length - 3} bildirim daha var.`, "notifications");
       deps.attention();

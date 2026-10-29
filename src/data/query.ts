@@ -86,3 +86,11 @@ export function clearQueries() {
   cache.clear();
   for (const key of listeners.keys()) notify(key);
 }
+
+export function dropQueries(prefix: string) {
+  for (const key of [...cache.keys()]) {
+    if (!key.startsWith(prefix)) continue;
+    cache.delete(key);
+    notify(key);
+  }
+}

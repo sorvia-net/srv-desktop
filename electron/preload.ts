@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 
 import type { SorviaBridge } from "../shared/contracts";
 
@@ -21,6 +21,7 @@ const bridge: SorviaBridge = {
     close: () => ipcRenderer.send("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
     onMaximizeChange: (listener) => listen("window:maximized", listener),
+    capture: () => ipcRenderer.invoke("window:capture"),
   },
   auth: {
     state: () => ipcRenderer.invoke("auth:state"),
@@ -60,6 +61,30 @@ const bridge: SorviaBridge = {
     onCommand: (listener) => listen("system:command", listener),
     setBadge: (count) => ipcRenderer.send("system:setBadge", count),
     checkUpdate: () => ipcRenderer.invoke("system:checkUpdate"),
+  },
+  files: {
+    pick: (options) => ipcRenderer.invoke("files:pick", options),
+    pathFor: (file) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return "";
+      }
+    },
+    uploadMedia: (paths, options) => ipcRenderer.invoke("files:uploadMedia", paths, options),
+    uploadDrive: (paths, options) => ipcRenderer.invoke("files:uploadDrive", paths, options),
+    downloadDrive: (file, options) => ipcRenderer.invoke("files:downloadDrive", file, options),
+    downloadMedia: (item, options) => ipcRenderer.invoke("files:downloadMedia", item, options),
+    transfers: () => ipcRenderer.invoke("files:transfers"),
+    cancel: (id) => ipcRenderer.invoke("files:cancel", id),
+    clearFinished: () => ipcRenderer.invoke("files:clearFinished"),
+    onTransfer: (listener) => listen("files:transfer", listener),
+    downloads: () => ipcRenderer.invoke("files:downloads"),
+    open: (path) => ipcRenderer.invoke("files:open", path),
+    reveal: (path) => ipcRenderer.send("files:reveal", path),
+    forget: (id) => ipcRenderer.invoke("files:forget", id),
+    usage: () => ipcRenderer.invoke("files:usage"),
+    clearCache: () => ipcRenderer.invoke("files:clearCache"),
   },
 };
 
