@@ -50,12 +50,12 @@ function AppWindow({ id, active }: { id: ModuleId; active: boolean }) {
       transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.9 }}
       style={{ transformOrigin: origin, pointerEvents: active ? "auto" : "none", zIndex: active ? 20 : 10 }}
     >
-      <div className="h-full px-9 pb-9 pt-7">
+      <div className="h-full px-9 pb-10 pt-7">
         <AppNav id={id}>
           <Screen />
         </AppNav>
       </div>
-      <button onClick={os.goHome} title="Ana ekran (Ctrl+H)" aria-label="Ana ekran" className="group absolute bottom-0 left-1/2 flex h-5 w-56 -translate-x-1/2 items-center justify-center">
+      <button onClick={os.goHome} title="Ana ekran (Ctrl+H)" aria-label="Ana ekran" className="group absolute bottom-1.5 left-1/2 z-10 flex h-5 w-56 -translate-x-1/2 items-center justify-center">
         <span className="h-[5px] w-[134px] rounded-full bg-white/45 transition-all group-hover:w-[160px] group-hover:bg-white/80" />
       </button>
     </motion.section>
@@ -70,12 +70,12 @@ function DockPeek() {
   if (!os.active) return null;
   const dock = resolveLayout(session.prefs.homeLayout, session.user, modules.installed).dock;
   return (
-    <div className="absolute inset-x-0 bottom-0 z-30 flex h-6 justify-center" onMouseEnter={() => setShown(true)}>
+    <div className="absolute inset-x-0 bottom-0 z-30 flex h-3 justify-center" onMouseEnter={() => setShown(true)}>
       <AnimatePresence>
         {shown && (
           <motion.div
             initial={{ y: 90, opacity: 0 }}
-            animate={{ y: -18, opacity: 1 }}
+            animate={{ y: -40, opacity: 1 }}
             exit={{ y: 90, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             onMouseLeave={() => setShown(false)}
