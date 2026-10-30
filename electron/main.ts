@@ -203,7 +203,9 @@ function hardenGuest(contents: WebContents) {
   if (contents.getType() === "webview") {
     contents.on("console-message", (event) => {
       const level = (event as unknown as { level: string }).level;
-      if (level === "error" || level === "warning") webAppLog(`[${level}] ${contents.getURL().slice(0, 80)} ${(event as unknown as { message: string }).message}`);
+      const text = (event as unknown as { message: string }).message;
+      if (/eventQueue overflow|upgrade-insecure-requests/.test(text)) return;
+      if (level === "error" || level === "warning" || /error|fail|mkerror|drm|licen|widevine|keysystem|playback/i.test(text)) webAppLog(`[${level}] ${contents.getURL().slice(0, 80)} ${(event as unknown as { message: string }).message}`);
     });
     contents.on("render-process-gone", (_event, details) => webAppLog(`[crash] ${contents.getURL().slice(0, 80)} ${details.reason}`));
     contents.on("did-fail-load", (_event, code, description, url) => webAppLog(`[load] ${code} ${description} ${url.slice(0, 120)}`));
@@ -758,7 +760,12 @@ function hardenSession() {
       return false;
     }
   };
-  const webAllow = (permission: string, url: string) => permission === "fullscreen" || permission === "clipboard-sanitized-write" || (appHost(url) && (permission === "notifications" || permission === "media" || permission === "clipboard-read"));
+  const APP_PERMISSIONS = new Set(["notifications", "media", "clipboard-read", "mediaKeySystem", "storage-access", "top-level-storage-access", "persistent-storage", "speaker-selection", "window-management", "keyboardLock", "pointerLock", "idle-detection"]);
+  const webAllow = (permission: string, url: string) => {
+    const allowed = permission === "fullscreen" || permission === "clipboard-sanitized-write" || (appHost(url) && APP_PERMISSIONS.has(permission));
+    if (!allowed && appHost(url)) webAppLog(`[permission denied] ${permission} ${url.slice(0, 80)}`);
+    return allowed;
+  };
   web.setPermissionRequestHandler((contents, permission, callback, details) => callback(webAllow(permission, details.requestingUrl ?? contents.getURL())));
   web.setPermissionCheckHandler((_contents, permission, origin) => webAllow(permission, `${origin}/`));
   ses.setDevicePermissionHandler(() => false);
