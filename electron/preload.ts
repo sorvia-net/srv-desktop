@@ -59,6 +59,7 @@ const bridge: SorviaBridge = {
   },
   system: {
     openExternal: (url) => ipcRenderer.invoke("system:openExternal", url),
+    openAppWindow: (url, id) => ipcRenderer.invoke("system:openAppWindow", url, id),
     openBrowser: (url) => ipcRenderer.invoke("system:openBrowser", url),
     onOpenWeb: (listener) => listen("system:openWeb", listener),
     notify: (title, body) => ipcRenderer.send("system:notify", title, body),

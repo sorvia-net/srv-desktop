@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Button, cn, Pill, Spinner } from "@/design/ui";
 import { useModules, useCatalog } from "@/os/modules";
 import { Tile } from "@/os/icons";
-import { available, lockReason, type AppDef, type LinkDef } from "@/os/registry";
+import { available, launchLink, lockReason, type AppDef, type LinkDef } from "@/os/registry";
 import { useOs } from "@/os/state";
 import { useSession } from "@/shell/context";
 
@@ -131,7 +131,7 @@ function Action({ item, compact = false }: { item: Item; compact?: boolean }) {
         size="sm"
         onClick={() => {
           if (item.kind === "app") os.openApp(item.id);
-          else os.openApp("web", { link: item.id, url: item.url, title: item.title, at: String(Date.now()) });
+          else launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }));
         }}
       >
         Aç

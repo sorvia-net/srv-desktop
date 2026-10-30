@@ -359,6 +359,7 @@ export type SorviaBridge = {
   };
   system: {
     openExternal(url: string): Promise<void>;
+    openAppWindow(url: string, id: string): Promise<boolean>;
     openBrowser(url: string): Promise<void>;
     onOpenWeb(listener: (url: string) => void): () => void;
     notify(title: string, body: string): void;

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, session, shell, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -153,6 +154,34 @@ function harden(contents: WebContents) {
     openInside(url);
     return { action: "deny" };
   });
+}
+
+const APP_WINDOW_HOSTS = ["open.spotify.com", "web.whatsapp.com", "discord.com", "music.youtube.com", "www.youtube.com", "web.telegram.org"];
+
+function chromiumBrowser() {
+  const roots = [process.env["ProgramFiles(x86)"], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean) as string[];
+  const candidates = roots.flatMap((root) => [join(root, "Microsoft", "Edge", "Application", "msedge.exe"), join(root, "Google", "Chrome", "Application", "chrome.exe")]);
+  return candidates.find((path) => existsSync(path)) ?? null;
+}
+
+function openAppWindow(url: unknown, id: unknown) {
+  if (typeof url !== "string") return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" || !APP_WINDOW_HOSTS.includes(parsed.hostname)) return false;
+  const browser = chromiumBrowser();
+  if (!browser) {
+    void shell.openExternal(parsed.toString());
+    return true;
+  }
+  const profile = join(app.getPath("userData"), "app-windows", typeof id === "string" ? id.replace(/[^\w-]/g, "") || "default" : "default");
+  const child = spawn(browser, [`--app=${parsed.toString()}`, `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--window-size=1280,820"], { detached: true, stdio: "ignore" });
+  child.unref();
+  return true;
 }
 
 function openInside(url: unknown) {
@@ -480,6 +509,7 @@ function registerIpc() {
   handle("prefs:set", (patch) => applyPrefs(store.setPrefs(patch)));
 
   handle("system:openExternal", (url) => openInside(url));
+  handle("system:openAppWindow", (url, id) => openAppWindow(url, id));
   handle("system:openBrowser", (url) => openSafe(url));
   handle("system:checkUpdate", () => checkUpdate());
   handle("system:pickWallpaper", () => pickWallpaper());

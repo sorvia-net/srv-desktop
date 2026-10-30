@@ -15,7 +15,7 @@ import { Button, cn, Kbd, PRIORITY_LABEL, Segmented, Spinner } from "@/design/ui
 import { useNav, useOverlay, useSession } from "./context";
 import { Tile } from "@/os/icons";
 import { useModules, useCatalog } from "@/os/modules";
-import { available } from "@/os/registry";
+import { available, launchLink } from "@/os/registry";
 import { useOs } from "@/os/state";
 
 const spring = { type: "spring" as const, stiffness: 420, damping: 34 };
@@ -65,7 +65,7 @@ export function CommandPalette() {
         title: item.title,
         hint: item.subtitle,
         icon: <Tile item={item} size={22} className="shadow-none" />,
-        run: done(() => (item.kind === "app" ? os.openApp(item.id) : os.openApp("web", { link: item.id, url: item.url, title: item.title, at: String(Date.now()) }))),
+        run: done(() => (item.kind === "app" ? os.openApp(item.id) : launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) })))),
       }));
     const store = catalog
       .filter((item) => !installed.has(item.id) && available(item, session.user))

@@ -1,11 +1,12 @@
 import {
-  Gamepad2,
+  Disc3, Gamepad2, Headphones, MessageCircle, Music, Send,
   Activity, BookOpen, Bot, CalendarDays, ChartColumn, Code2, Cpu, CreditCard, Crown, FileText, FolderOpen, Globe, Images, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, Megaphone, MessagesSquare, Package, Server, Settings, Shield,
   ShoppingBag, ShoppingCart, Sparkles, Store, Ticket, UserRound, Users, Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { DesktopUser, HomeLayout, ModuleId, StoreModule } from "@shared/contracts";
+import { bridge } from "@/data/bridge";
 
 export type ModuleDef = {
   id: string;
@@ -28,7 +29,7 @@ export type ModuleDef = {
 };
 
 export type AppDef = ModuleDef & { kind: "app"; id: ModuleId };
-export type LinkDef = ModuleDef & { kind: "link"; url: string };
+export type LinkDef = ModuleDef & { kind: "link"; url: string; window?: boolean };
 export type FolderDef = { kind: "folder"; id: string; title: string };
 export type HomeItem = AppDef | LinkDef | FolderDef;
 
@@ -136,8 +137,17 @@ const LINK_LIST: LinkDef[] = [
   link("link-dev", "sorvia.dev", "Geliştirici dokümanları", Code2, "linear-gradient(160deg,#a78bfa 0%,#7c3aed 55%,#4c1d95 100%)", "https://sorvia.dev", "folder-links"),
   link("link-store", "Sorvia Store", "Giyim mağazası", Store, "linear-gradient(160deg,#f9a8d4 0%,#ec4899 55%,#be185d 100%)", "https://sorvia.store", "folder-links"),
   link("link-cc", "Command Center", "Altyapı paneli", Cpu, "linear-gradient(160deg,#5eead4 0%,#14b8a6 55%,#0f766e 100%)", "https://tr-sorvia-panelorg.sorvia.net", "folder-links", { role: "ADMIN" }),
+  appWindow("app-spotify", "Spotify", "Müzik ve podcast", Music, "linear-gradient(160deg,#4ade80 0%,#1db954 55%,#0f6e31 100%)", "https://open.spotify.com"),
+  appWindow("app-whatsapp", "WhatsApp", "Mesajlaşma", MessageCircle, "linear-gradient(160deg,#86efac 0%,#25d366 55%,#128c7e 100%)", "https://web.whatsapp.com"),
+  appWindow("app-discord", "Discord", "Sunucular ve sohbet", Headphones, "linear-gradient(160deg,#a5b4fc 0%,#5865f2 55%,#3c45a5 100%)", "https://discord.com/app"),
+  appWindow("app-ytmusic", "YouTube Music", "Müzik", Disc3, "linear-gradient(160deg,#fca5a5 0%,#ff0033 55%,#991b1b 100%)", "https://music.youtube.com"),
+  appWindow("app-telegram", "Telegram", "Mesajlaşma", Send, "linear-gradient(160deg,#7dd3fc 0%,#229ed9 55%,#0f6b99 100%)", "https://web.telegram.org/a/"),
   link("link-ai", "Yapay zekâ", "9Router ağ geçidi", Sparkles, "linear-gradient(160deg,#93c5fd 0%,#8b5cf6 50%,#db2777 100%)", "https://ai.sorvia.dev", "folder-links", { role: "ADMIN" }),
 ];
+
+function appWindow(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string): LinkDef {
+  return { kind: "link", id, title, subtitle, description: `${subtitle}. Kendi penceresinde, uygulama gibi açılır; hesabın bu bilgisayarda hatırlanır.`, category: "Eğlence", icon, tile, url, window: true, features: ["Ayrı pencere", "Oturum hatırlanır", "Görev çubuğunda kendi simgesi"], version: "web", size: "—" };
+}
 
 function link(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string, folder: string, extra: { permission?: string; role?: "ADMIN" | "OWNER" } = {}): LinkDef {
   return { kind: "link", id, title, subtitle, description: `${subtitle}. Tarayıcında açılır.`, category: "Web", icon, tile, url, folder, features: [], version: "web", size: "—", ...extra };
@@ -237,4 +247,9 @@ export function itemBadge(item: HomeItem, badges: Partial<Record<string, number>
   if (item.kind === "app") return badges[item.id] ?? 0;
   if (item.kind === "folder") return folderItems(item, user, installed).reduce((sum, child) => sum + itemBadge(child, badges, user, installed), 0);
   return 0;
+}
+
+export function launchLink(item: LinkDef, open: (url: string) => void) {
+  if (item.window) void bridge.system.openAppWindow(item.url, item.id).then((done) => done || open(item.url));
+  else open(item.url);
 }

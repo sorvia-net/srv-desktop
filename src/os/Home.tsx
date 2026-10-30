@@ -14,7 +14,7 @@ import { useSession } from "@/shell/context";
 import { ConfirmDialog, type ConfirmState } from "./Confirm";
 import { Badge, ItemTile, Tile } from "./icons";
 import { useModules } from "./modules";
-import { appById, DEFAULT_LAYOUT, folderItems, itemBadge, itemById, resolveLayout, type HomeItem } from "./registry";
+import { appById, DEFAULT_LAYOUT, folderItems, itemBadge, itemById, launchLink, resolveLayout, type HomeItem } from "./registry";
 import { useOs } from "./state";
 
 const WEEKDAY = new Intl.DateTimeFormat("tr-TR", { weekday: "long", timeZone: "Europe/Istanbul" });
@@ -141,7 +141,7 @@ function HomeIcon({ item, size, label, drag, setDrag, onDropOn, area }: { item: 
     if (item.kind === "app") os.openApp(item.id, undefined, ref.current?.getBoundingClientRect());
     else if (item.kind === "folder") os.openFolder(item.id);
     else {
-      os.openApp("web", { link: item.id, url: item.url, title: item.title, at: String(Date.now()) }, ref.current?.getBoundingClientRect());
+      launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }, ref.current?.getBoundingClientRect()));
     }
   };
 
