@@ -264,7 +264,7 @@ function openAppWindow(url: unknown, id: unknown) {
 
 function openInside(url: unknown) {
   if (typeof url !== "string") return;
-  if (!webAllowed(url) || !win || win.isDestroyed()) return openSafe(url);
+  if (!webAllowed(url) || !win || win.isDestroyed() || auth.state.status !== "signedIn") return openSafe(url);
   showWindow();
   send("system:openWeb", url);
 }

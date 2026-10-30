@@ -128,7 +128,7 @@ function Linking({ auth, onChange }: { auth: Extract<AuthState, { status: "linki
         {left > 0 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} içinde geçerli` : "Kodun süresi doldu"}
       </p>
       <div className="mt-6 flex gap-2.5">
-        <Button variant="glass" size="md" className="flex-1" onClick={() => void bridge.system.openExternal(auth.verificationUrl)}>
+        <Button variant="glass" size="md" className="flex-1" onClick={() => void bridge.system.openBrowser(auth.verificationUrl)}>
           <ExternalLink /> Sayfayı aç
         </Button>
         <Button variant="ghost" size="md" className="flex-1" onClick={async () => onChange(await bridge.auth.cancel())}>
