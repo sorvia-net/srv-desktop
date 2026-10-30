@@ -384,7 +384,7 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
             onHide={() => setHidden((set) => new Set(set).add(featured.id))}
           />
         )}
-        <div className={cn("grid content-start gap-3", featured ? "grid-cols-[repeat(auto-fill,minmax(150px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(210px,1fr))]")}>
+        <div className={cn("grid content-start gap-3", featured ? "grid-cols-[repeat(auto-fill,minmax(200px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(210px,1fr))]")}>
           {(joined ? voice.peers : (channel.peers ?? []).map((peer) => ({ ...peer, me: false, speaking: false, connection: "new" as const, hasScreen: peer.sharing, hasCamera: false }))).map((peer) => (
             <div
               key={peer.id}
@@ -412,16 +412,32 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
                   <button onClick={() => setPeerVolume(peer.userId, (voice.volumes[peer.userId] ?? 100) === 0 ? 100 : 0)} className="mt-1.5 text-[11.5px] text-accent-2 hover:underline">{(voice.volumes[peer.userId] ?? 100) === 0 ? "Sesini aç" : "Benim için sustur"}</button>
                 </div>
               )}
-              <span className={cn("relative flex items-center gap-1.5 text-[13.5px] font-medium text-ink", peer.hasCamera && "mt-auto rounded-full bg-black/55 px-2.5 py-0.5 text-white")}>
-                {peer.name}
-                {peer.me && <span className="text-[11px] text-ink-4">(sen)</span>}
-              </span>
-              <span className={cn("relative flex items-center gap-1.5 text-ink-3", peer.hasCamera && "mb-2 rounded-full bg-black/55 px-2 py-0.5")}>
-                {peer.hasScreen && <MonitorUp className="size-3.5 text-accent-2" />}
-                {peer.deafened ? <HeadphoneOff className="size-3.5 text-bad" /> : peer.muted ? <MicOff className="size-3.5 text-bad" /> : <Mic className="size-3.5" />}
-                {joined && !peer.me && (voice.volumes[peer.userId] ?? 100) === 0 && <Volume2 className="size-3.5 text-bad" />}
-                {joined && !peer.me && peer.connection !== "connected" && <span className="text-[11px] text-warn">bağlanıyor</span>}
-              </span>
+              {(() => {
+                const icons = (
+                  <>
+                    {peer.hasScreen && <MonitorUp className="size-3.5 shrink-0 text-accent-2" />}
+                    {peer.deafened ? <HeadphoneOff className="size-3.5 shrink-0 text-bad" /> : peer.muted ? <MicOff className="size-3.5 shrink-0 text-bad" /> : <Mic className="size-3.5 shrink-0" />}
+                    {joined && !peer.me && (voice.volumes[peer.userId] ?? 100) === 0 && <Volume2 className="size-3.5 shrink-0 text-bad" />}
+                    {joined && !peer.me && peer.connection !== "connected" && <span className="shrink-0 text-[11px] text-warn">bağlanıyor</span>}
+                  </>
+                );
+                if (peer.hasCamera)
+                  return (
+                    <span className="absolute bottom-2 left-2 flex max-w-[calc(100%-16px)] items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-1 text-[12px] font-medium text-white backdrop-blur">
+                      <span className="min-w-0 truncate">{peer.name}{peer.me ? " (sen)" : ""}</span>
+                      {icons}
+                    </span>
+                  );
+                return (
+                  <>
+                    <span className="relative flex max-w-full items-center gap-1.5 px-2 text-[13.5px] font-medium text-ink">
+                      <span className="min-w-0 truncate">{peer.name}</span>
+                      {peer.me && <span className="shrink-0 text-[11px] text-ink-4">(sen)</span>}
+                    </span>
+                    <span className="relative flex items-center gap-1.5 text-ink-3">{icons}</span>
+                  </>
+                );
+              })()}
             </div>
           ))}
         </div>
