@@ -1,15 +1,16 @@
-import { AppWindow, Camera, CameraOff, Hash, HeadphoneOff, Headphones, Lock, Maximize2, MessagesSquare, Mic, MicOff, Monitor, MonitorUp, MonitorX, Phone, PhoneOff, Pin, Plus, SendHorizonal, Settings2, Signal, Trash2, Volume2, X } from "lucide-react";
-import { motion } from "motion/react";
+import { AppWindow, Camera, CameraOff, EyeOff, Hash, HeadphoneOff, Headphones, Lock, Maximize2, MessagesSquare, Mic, MicOff, Minimize2, Monitor, MonitorUp, Phone, PhoneOff, Plus, Settings2, Signal, Trash2, Volume2, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
-import type { ChatChannel, ChatMessage, ChatPerson } from "@shared/contracts";
+import type { ChatChannel, ChatPerson } from "@shared/contracts";
 import { api, peopleApi, voiceApi } from "@/data/api";
 import { bridge } from "@/data/bridge";
-import { dayKey, fullDay, time } from "@/data/format";
-import { invalidate, setQueryData, useQuery } from "@/data/query";
-import { joinVoice, leaveVoice, remoteCamera, remoteScreen, setPeerVolume, startCamera, startScreenShare, stopCamera, stopScreenShare, toggleDeafen, toggleMute, useVoice } from "@/data/voice";
+import { invalidate, useQuery } from "@/data/query";
+import { getDevices, getShareQuality, joinVoice, leaveVoice, remoteCamera, remoteScreen, setDevices, setPeerVolume, setShareQuality, startCamera, startScreenShare, stopCamera, stopScreenShare, toggleDeafen, toggleMute, useVoice } from "@/data/voice";
 import { Avatar, Button, cn, Empty, ErrorNote, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+
+import { ChannelView } from "./ChatChannel";
 
 export function Chat() {
   const session = useSession();
@@ -92,7 +93,7 @@ export function Chat() {
         <VoiceDock />
       </aside>
       <section className="glass-card flex min-h-0 flex-col overflow-hidden rounded-[26px]">
-        {current ? current.kind === "voice" ? <VoiceStage channel={current} /> : <Channel channel={current} /> : <Empty icon={<MessagesSquare />} title="Kanal seç" />}
+        {current ? current.kind === "voice" ? <VoiceStage channel={current} /> : <ChannelView channel={current} /> : <Empty icon={<MessagesSquare />} title="Kanal seç" />}
       </section>
       {picking && <PeoplePicker onPick={(person) => void openDirect(person)} onClose={() => setPicking(false)} />}
       {editing && <ChannelEditor target={editing} onClose={() => setEditing(null)} onDeleted={() => setActive(null)} />}
@@ -171,9 +172,13 @@ function ChannelRow({ active, icon, name, unread, live = false, onClick, onEdit 
 function VoiceDock() {
   const voice = useVoice();
   const [picker, setPicker] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [shareMenu, setShareMenu] = useState(false);
   if (voice.status === "idle") return null;
+  const ping = voice.ping ?? voice.serverPing;
+  const tone = ping === null ? "text-ok" : ping < 120 ? "text-ok" : ping < 250 ? "text-warn" : "text-bad";
   return (
-    <div className="mt-3 rounded-[18px] bg-white/[0.07] p-3 ring-1 ring-white/10">
+    <div className="relative mt-3 rounded-[18px] bg-white/[0.07] p-3 ring-1 ring-white/10">
       {voice.status === "error" ? (
         <div className="flex items-center gap-2 text-[12.5px] text-bad">
           <span className="min-w-0 flex-1">{voice.error}</span>
@@ -181,20 +186,83 @@ function VoiceDock() {
         </div>
       ) : (
         <>
-          <p className={cn("flex items-center gap-1.5 text-[12.5px] font-semibold", voice.status === "connected" ? "text-ok" : "text-warn")}>
-            <Signal className="size-3.5" /> {voice.status === "connected" ? "Ses bağlı" : "Bağlanıyor…"}
-          </p>
-          <p className="truncate text-[12px] text-ink-3">{voice.channelName ?? ""}</p>
+          <div className="flex items-center gap-1.5">
+            <p
+              title={`Bağlantı gecikmesi${voice.ping !== null ? ` · eşler arası ${voice.ping} ms` : ""}${voice.serverPing !== null ? ` · sunucu ${voice.serverPing} ms` : ""}`}
+              className={cn("flex flex-1 items-center gap-1.5 text-[12.5px] font-semibold", voice.status === "connected" ? tone : "text-warn")}
+            >
+              <Signal className="size-3.5" /> {voice.status === "connected" ? "Ses bağlı" : "Bağlanıyor…"}
+              {voice.status === "connected" && ping !== null && <span className="tabular text-[11px] font-medium text-ink-3">{ping} ms</span>}
+            </p>
+            <button onClick={() => setSettings((value) => !value)} aria-label="Ses ayarları" className={cn("rounded-full p-1.5", settings ? "bg-white/15 text-ink" : "text-ink-3 hover:bg-white/10 hover:text-ink")}><Settings2 className="size-3.5" /></button>
+          </div>
+          <p className="truncate text-[12px] text-ink-3">{voice.channelName ?? ""}{voice.error ? ` · ${voice.error}` : ""}</p>
           <div className="mt-2.5 flex items-center gap-1.5">
             <DockButton label={voice.muted ? "Mikrofonu aç" : "Sessize al"} danger={voice.muted} onClick={toggleMute}>{voice.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}</DockButton>
             <DockButton label={voice.deafened ? "Sesi aç" : "Sağırlaştır"} danger={voice.deafened} onClick={toggleDeafen}>{voice.deafened ? <HeadphoneOff className="size-4" /> : <Headphones className="size-4" />}</DockButton>
             <DockButton label={voice.camera ? "Kamerayı kapat" : "Kamerayı aç"} active={voice.camera} onClick={() => void (voice.camera ? stopCamera() : startCamera())}>{voice.camera ? <CameraOff className="size-4" /> : <Camera className="size-4" />}</DockButton>
-            <DockButton label={voice.sharing ? "Paylaşımı durdur" : "Ekran paylaş"} active={voice.sharing} onClick={() => (voice.sharing ? void stopScreenShare() : setPicker(true))}>{voice.sharing ? <MonitorX className="size-4" /> : <MonitorUp className="size-4" />}</DockButton>
+            <DockButton label={voice.sharing ? "Paylaşım seçenekleri" : "Ekran paylaş"} active={voice.sharing} onClick={() => (voice.sharing ? setShareMenu((value) => !value) : setPicker(true))}>{voice.sharing ? <MonitorUp className="size-4" /> : <MonitorUp className="size-4" />}</DockButton>
             <DockButton label="Ayrıl" danger onClick={() => void leaveVoice()}><PhoneOff className="size-4" /></DockButton>
           </div>
+          {shareMenu && voice.sharing && (
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <button onClick={() => { setShareMenu(false); setPicker(true); }} className="rounded-[12px] bg-white/[0.08] px-2 py-2 text-[12px] text-ink hover:bg-white/[0.14]">Ekranı değiştir</button>
+              <button onClick={() => { setShareMenu(false); void stopScreenShare(); }} className="rounded-[12px] bg-bad/20 px-2 py-2 text-[12px] text-bad hover:bg-bad/30">Paylaşımı durdur</button>
+            </div>
+          )}
         </>
       )}
+      {settings && <VoiceSettings onClose={() => setSettings(false)} />}
       {picker && <ScreenPicker onClose={() => setPicker(false)} />}
+    </div>
+  );
+}
+
+function VoiceSettings({ onClose }: { onClose: () => void }) {
+  const voice = useVoice();
+  const [devices, setDeviceList] = useState<MediaDeviceInfo[]>([]);
+  const [selected, setSelected] = useState(getDevices());
+  const [quality, setQuality] = useState(getShareQuality());
+  useEffect(() => {
+    void navigator.mediaDevices.enumerateDevices().then(setDeviceList).catch(() => undefined);
+  }, []);
+  const inputs = devices.filter((item) => item.kind === "audioinput");
+  const outputs = devices.filter((item) => item.kind === "audiooutput");
+  const label = (item: MediaDeviceInfo, index: number) => (item.deviceId === "default" ? `Varsayılan${item.label ? ` (${item.label.replace(/^Default - |^Varsayılan - /, "")})` : ""}` : item.label || `Aygıt ${index + 1}`);
+  return (
+    <div className="absolute bottom-full left-0 z-30 mb-2 w-full rounded-[18px] bg-[#1f1d1b] p-3 shadow-2xl ring-1 ring-white/10">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[13px] font-semibold text-ink">Ses ve görüntü</p>
+        <button onClick={onClose} className="text-ink-3 hover:text-ink"><X className="size-4" /></button>
+      </div>
+      <label className="mb-2 block text-[11.5px] text-ink-4">
+        Mikrofon
+        <select value={selected.input} onChange={(event) => { const next = { ...selected, input: event.target.value }; setSelected(next); void setDevices({ input: event.target.value }); }} className="mt-1 h-9 w-full rounded-[10px] bg-black/40 px-2 text-[12.5px] text-ink outline-none ring-1 ring-white/10">
+          {inputs.map((item, index) => <option key={item.deviceId} value={item.deviceId}>{label(item, index)}</option>)}
+        </select>
+      </label>
+      <label className="mb-2 block text-[11.5px] text-ink-4">
+        Kulaklık / hoparlör
+        <select value={selected.output} onChange={(event) => { const next = { ...selected, output: event.target.value }; setSelected(next); void setDevices({ output: event.target.value }); }} className="mt-1 h-9 w-full rounded-[10px] bg-black/40 px-2 text-[12.5px] text-ink outline-none ring-1 ring-white/10">
+          {outputs.map((item, index) => <option key={item.deviceId} value={item.deviceId}>{label(item, index)}</option>)}
+        </select>
+      </label>
+      <p className="mb-1 mt-3 text-[11.5px] text-ink-4">Ekran paylaşım kalitesi</p>
+      <div className="mb-2 grid grid-cols-4 gap-1">
+        {([720, 1080, 1440, 0] as const).map((height) => (
+          <button key={height} onClick={() => { const next = { ...quality, height }; setQuality(next); void setShareQuality({ height }); }} className={cn("rounded-[10px] py-1.5 text-[11.5px]", quality.height === height ? "accent-fill" : "bg-white/[0.07] text-ink-2 hover:bg-white/[0.12]")}>
+            {height ? `${height}p` : "Kaynak"}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        {([15, 30, 60] as const).map((fps) => (
+          <button key={fps} onClick={() => { const next = { ...quality, fps }; setQuality(next); void setShareQuality({ fps }); }} className={cn("rounded-[10px] py-1.5 text-[11.5px]", quality.fps === fps ? "accent-fill" : "bg-white/[0.07] text-ink-2 hover:bg-white/[0.12]")}>
+            {fps} FPS
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-ink-4">{voice.sharing ? "Değişiklik açık paylaşıma hemen uygulanır." : "Bir sonraki paylaşımda kullanılır."}</p>
     </div>
   );
 }
@@ -208,19 +276,23 @@ function DockButton({ label, onClick, danger = false, active = false, children }
 }
 
 function ScreenPicker({ onClose }: { onClose: () => void }) {
-  const sources = useQuery<{ id: string; name: string; thumbnail: string; display: boolean }[]>("voice:sources", async () => ({ ok: true, data: await bridge.system.screenSources() }));
+  const [sources, setSources] = useState<{ id: string; name: string; thumbnail: string; display: boolean }[] | null>(null);
+  const voice = useVoice();
+  useEffect(() => {
+    void bridge.system.screenSources().then(setSources);
+  }, []);
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-md" onClick={onClose}>
       <div className="glass-sheet w-[760px] max-w-[92vw] rounded-[26px] p-6" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[18px] font-semibold text-ink">Neyi paylaşmak istersin?</h3>
+          <h3 className="text-[18px] font-semibold text-ink">{voice.sharing ? "Paylaşılan ekranı değiştir" : "Neyi paylaşmak istersin?"}</h3>
           <button onClick={onClose} className="rounded-full p-1.5 text-ink-3 hover:bg-white/10"><X className="size-4" /></button>
         </div>
-        {!sources.data ? (
+        {!sources ? (
           <Skeleton className="h-48 rounded-[18px]" />
         ) : (
           <div className="scroll-area grid max-h-[60vh] grid-cols-3 gap-3">
-            {sources.data.map((source) => (
+            {sources.map((source) => (
               <button
                 key={source.id}
                 onClick={() => {
@@ -244,9 +316,26 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
   const voice = useVoice();
   const joined = voice.channelId === channel.id && voice.status === "connected";
   const [focus, setFocus] = useState<string | null>(null);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [theater, setTheater] = useState<string | null>(null);
   const [tuning, setTuning] = useState<string | null>(null);
-  const sharing = voice.peers.filter((peer) => peer.hasScreen);
-  const featured = joined ? (sharing.find((peer) => peer.id === focus) ?? sharing[0] ?? null) : null;
+  const sharing = joined ? voice.peers.filter((peer) => peer.hasScreen) : [];
+  const visible = sharing.filter((peer) => !hidden.has(peer.id));
+  const featured = visible.find((peer) => peer.id === focus) ?? visible[0] ?? null;
+  const theaterPeer = theater ? sharing.find((peer) => peer.id === theater) ?? null : null;
+
+  useEffect(() => {
+    if (theater && !theaterPeer) setTheater(null);
+  }, [theater, theaterPeer]);
+
+  const watch = (id: string) => {
+    setHidden((set) => {
+      const next = new Set(set);
+      next.delete(id);
+      return next;
+    });
+    setFocus(id);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -256,6 +345,15 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
           <h2 className="text-[16px] font-semibold text-ink">{channel.name}</h2>
           <p className="truncate text-[12.5px] text-ink-3">{channel.topic ?? (channel.limit ? `En fazla ${channel.limit} kişi` : "Ses kanalı")}</p>
         </div>
+        {sharing.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            {sharing.map((peer) => (
+              <button key={peer.id} onClick={() => (hidden.has(peer.id) || featured?.id !== peer.id ? watch(peer.id) : setHidden((set) => new Set(set).add(peer.id)))} className={cn("flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px]", featured?.id === peer.id ? "accent-fill" : "bg-white/[0.08] text-ink-2 hover:bg-white/[0.14]")}>
+                <MonitorUp className="size-3.5" /> {peer.me ? "Senin ekranın" : peer.name}
+              </button>
+            ))}
+          </div>
+        )}
         {!joined ? (
           <Button variant="accent" onClick={() => void joinVoice(channel.id)} loading={voice.status === "connecting" && voice.channelId === channel.id}>
             <Phone className="size-4" /> Katıl
@@ -267,31 +365,35 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
         )}
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-        {featured && <ScreenView peerId={featured.id} name={featured.name} />}
+        {featured && (
+          <ScreenView
+            key={featured.id}
+            peerId={featured.id}
+            name={featured.me ? "Senin ekranın" : `${featured.name} ekranını paylaşıyor`}
+            onTheater={() => setTheater(featured.id)}
+            onHide={() => setHidden((set) => new Set(set).add(featured.id))}
+          />
+        )}
         <div className={cn("grid content-start gap-3", featured ? "grid-cols-[repeat(auto-fill,minmax(150px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(210px,1fr))]")}>
           {(joined ? voice.peers : (channel.peers ?? []).map((peer) => ({ ...peer, me: false, speaking: false, connection: "new" as const, hasScreen: peer.sharing, hasCamera: false }))).map((peer) => (
             <div
               key={peer.id}
-              onClick={() => peer.hasScreen && setFocus(peer.id)}
+              onClick={() => peer.hasScreen && joined && watch(peer.id)}
               onContextMenu={(event) => {
                 if (!joined || peer.me) return;
                 event.preventDefault();
                 setTuning(tuning === peer.id ? null : peer.id);
               }}
-              className={cn(
-                "relative flex flex-col items-center justify-center gap-2.5 overflow-hidden rounded-[22px] bg-white/[0.06] ring-2 transition",
-                featured ? "py-4" : "aspect-[4/3]",
-                peer.speaking ? "ring-ok" : "ring-transparent",
-              )}
+              className={cn("relative flex flex-col items-center justify-center gap-2.5 overflow-hidden rounded-[22px] bg-white/[0.06] ring-2 transition", featured ? "py-4" : "aspect-[4/3]", peer.speaking ? "ring-ok" : "ring-transparent", peer.hasScreen && "cursor-pointer")}
             >
               {peer.hasCamera && !featured ? <CameraView peerId={peer.id} mirror={peer.me} /> : <Avatar name={peer.name} src={peer.avatarUrl} size={featured ? 44 : 72} />}
               {joined && !peer.me && (
-                <button onClick={(event) => {
-                  event.stopPropagation();
-                  setTuning(tuning === peer.id ? null : peer.id);
-                }} className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-ink-2 hover:text-ink" aria-label="Ses düzeyi">
+                <button onClick={(event) => { event.stopPropagation(); setTuning(tuning === peer.id ? null : peer.id); }} className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-ink-2 hover:text-ink" aria-label="Ses düzeyi">
                   <Volume2 className="size-3.5" />
                 </button>
+              )}
+              {peer.hasScreen && joined && (hidden.has(peer.id) || featured?.id !== peer.id) && (
+                <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[10.5px] font-semibold text-white">İzle</span>
               )}
               {tuning === peer.id && (
                 <div onClick={(event) => event.stopPropagation()} className="absolute inset-x-3 bottom-3 z-10 rounded-[14px] bg-black/75 p-3 text-left backdrop-blur">
@@ -300,11 +402,11 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
                   <button onClick={() => setPeerVolume(peer.userId, (voice.volumes[peer.userId] ?? 100) === 0 ? 100 : 0)} className="mt-1.5 text-[11.5px] text-accent-2 hover:underline">{(voice.volumes[peer.userId] ?? 100) === 0 ? "Sesini aç" : "Benim için sustur"}</button>
                 </div>
               )}
-              <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
+              <span className="relative flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
                 {peer.name}
                 {peer.me && <span className="text-[11px] text-ink-4">(sen)</span>}
               </span>
-              <span className="flex items-center gap-1.5 text-ink-3">
+              <span className="relative flex items-center gap-1.5 text-ink-3">
                 {peer.hasScreen && <MonitorUp className="size-3.5 text-accent-2" />}
                 {peer.deafened ? <HeadphoneOff className="size-3.5 text-bad" /> : peer.muted ? <MicOff className="size-3.5 text-bad" /> : <Mic className="size-3.5" />}
                 {joined && !peer.me && (voice.volumes[peer.userId] ?? 100) === 0 && <Volume2 className="size-3.5 text-bad" />}
@@ -315,8 +417,48 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
         </div>
         {!joined && (channel.peers ?? []).length === 0 && <Empty icon={<Volume2 />} title="Kanal boş" body="Katılan ilk kişi sen ol." />}
       </div>
+      <AnimatePresence>
+        {theaterPeer && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[85] bg-black" onKeyDown={(event) => event.key === "Escape" && setTheater(null)} tabIndex={-1} ref={(node) => node?.focus()}>
+            <StreamVideo peerId={theaterPeer.id} className="h-full w-full object-contain" />
+            <div className="absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent px-5 py-4 text-white">
+              <span className="text-[13.5px] font-medium">{theaterPeer.me ? "Senin ekranın" : `${theaterPeer.name} ekranını paylaşıyor`}</span>
+              <span className="flex-1" />
+              <span className="text-[12px] text-white/60">Çıkmak için Esc</span>
+              <button onClick={() => setTheater(null)} className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-4 text-[13px] hover:bg-white/25"><Minimize2 className="size-4" /> Küçült</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
+}
+
+function StreamVideo({ peerId, className }: { peerId: string; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const voice = useVoice();
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const stream = remoteScreen(peerId);
+    if (element.srcObject !== stream) element.srcObject = stream;
+    if (stream && element.paused) void element.play().catch(() => undefined);
+  });
+  useEffect(() => {
+    const onVisible = () => {
+      const element = ref.current;
+      if (!element) return;
+      element.srcObject = remoteScreen(peerId);
+      void element.play().catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [peerId, voice.peers.length]);
+  return <video ref={ref} autoPlay playsInline muted className={className} />;
 }
 
 function CameraView({ peerId, mirror }: { peerId: string; mirror: boolean }) {
@@ -329,20 +471,15 @@ function CameraView({ peerId, mirror }: { peerId: string; mirror: boolean }) {
   return <video ref={ref} autoPlay playsInline muted className={cn("absolute inset-0 h-full w-full object-cover", mirror && "-scale-x-100")} />;
 }
 
-function ScreenView({ peerId, name }: { peerId: string; name: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const voice = useVoice();
-  useEffect(() => {
-    const stream = remoteScreen(peerId);
-    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream;
-  }, [peerId, voice]);
+function ScreenView({ peerId, name, onTheater, onHide }: { peerId: string; name: string; onTheater: () => void; onHide: () => void }) {
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] bg-black">
-      <video ref={ref} autoPlay playsInline muted className="h-full w-full object-contain" />
-      <span className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-[12px] text-white">{name} ekranını paylaşıyor</span>
-      <button onClick={() => void ref.current?.requestFullscreen()} className="absolute right-3 top-3 rounded-full bg-black/60 p-2 text-white hover:bg-black/80" aria-label="Tam ekran">
-        <Maximize2 className="size-4" />
-      </button>
+    <div className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] bg-black" onDoubleClick={onTheater}>
+      <StreamVideo peerId={peerId} className="h-full w-full object-contain" />
+      <span className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-[12px] text-white">{name}</span>
+      <div className="absolute right-3 top-3 flex gap-1.5">
+        <button onClick={onHide} className="flex h-8 items-center gap-1.5 rounded-full bg-black/60 px-3 text-[12px] text-white hover:bg-black/80"><EyeOff className="size-3.5" /> İzlemeyi bırak</button>
+        <button onClick={onTheater} className="rounded-full bg-black/60 p-2 text-white hover:bg-black/80" aria-label="Tam ekran"><Maximize2 className="size-4" /></button>
+      </div>
     </div>
   );
 }
@@ -427,110 +564,5 @@ function ChannelEditor({ target, onClose, onDeleted }: { target: ChatChannel | "
         </div>
       </form>
     </div>
-  );
-}
-
-function Channel({ channel }: { channel: ChatChannel }) {
-  const session = useSession();
-  const key = `chat:messages:${channel.id}`;
-  const messages = useQuery<ChatMessage[]>(key, () => api.messages(channel.id), { refreshMs: 8_000 });
-  const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
-  }, [messages.data?.length, channel.id]);
-
-  const send = async () => {
-    const text = body.trim();
-    if (!text) return;
-    setSending(true);
-    const result = await api.postMessage(channel.id, text);
-    setSending(false);
-    if (!result.ok) {
-      session.toast(result.message, "bad");
-      return;
-    }
-    setBody("");
-    setQueryData<ChatMessage[]>(key, (list) => [...(list ?? []), result.data]);
-    invalidate("chat:channels");
-  };
-
-  const list = messages.data ?? [];
-  const pinned = list.filter((item) => item.pinned);
-  let lastDay = "";
-
-  return (
-    <>
-      <header className="flex items-center gap-3 border-b border-white/8 px-7 py-4">
-        {channel.kind === "dm" ? <Avatar name={channel.name} src={channel.avatarUrl} size={40} /> : <span className="icon-ring flex size-10 items-center justify-center rounded-full text-ink">{channel.isPrivate ? <Lock className="size-4" /> : <Hash className="size-4" />}</span>}
-        <div className="min-w-0">
-          <h2 className="text-[16px] font-semibold text-ink">{channel.name}</h2>
-          {channel.topic && <p className="truncate text-[12.5px] text-ink-3">{channel.topic}</p>}
-        </div>
-      </header>
-      {pinned.length > 0 && (
-        <div className="flex items-center gap-2 border-b border-white/8 bg-accent/[0.07] px-7 py-2 text-[12.5px] text-ink-2">
-          <Pin className="size-3.5 text-accent-2" />
-          <span className="truncate">{pinned[pinned.length - 1]!.body}</span>
-        </div>
-      )}
-      <div className="scroll-area flex-1 px-7 py-5">
-        {messages.loading && <div className="space-y-4"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>}
-        {!messages.loading && list.length === 0 && <Empty icon={<MessagesSquare />} title="Henüz mesaj yok" body="Kanala ilk mesajı sen yaz." />}
-        {list.map((message, index) => {
-          const day = dayKey(message.createdAt);
-          const showDay = day !== lastDay;
-          lastDay = day;
-          const previous = list[index - 1];
-          const compact = !showDay && previous && previous.author?.id === message.author?.id && new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() < 5 * 60_000;
-          return (
-            <div key={message.id}>
-              {showDay && (
-                <div className="my-4 flex items-center gap-3 text-[11.5px] font-medium capitalize text-ink-4">
-                  <span className="h-px flex-1 bg-white/8" />
-                  {fullDay(message.createdAt)}
-                  <span className="h-px flex-1 bg-white/8" />
-                </div>
-              )}
-              <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className={cn("group flex gap-3 rounded-[14px] px-2 hover:bg-white/[0.04]", compact ? "py-0.5" : "mt-2 py-1.5")}>
-                {compact ? <span className="w-9 shrink-0 pt-0.5 text-right text-[10.5px] text-transparent group-hover:text-ink-4">{time(message.createdAt)}</span> : <Avatar name={message.author?.name ?? "?"} src={message.author?.avatarUrl} size={36} />}
-                <div className="min-w-0 flex-1">
-                  {!compact && (
-                    <p className="text-[13px]">
-                      <span className="font-semibold text-ink">{message.author?.name ?? "Silinmiş kullanıcı"}</span>
-                      <span className="ml-2 text-[11.5px] text-ink-4">{time(message.createdAt)}</span>
-                    </p>
-                  )}
-                  <p className="selectable whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-2">{message.body}</p>
-                </div>
-              </motion.div>
-            </div>
-          );
-        })}
-        <div ref={bottom} />
-      </div>
-      <footer className="border-t border-white/8 p-4">
-        <div className="flex items-end gap-2 rounded-[22px] bg-black/25 p-2 pl-4 ring-1 ring-white/10 focus-within:ring-accent/60">
-          <textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void send();
-              }
-            }}
-            rows={1}
-            placeholder={channel.kind === "dm" ? `@${channel.name} kişisine yaz` : `#${channel.name} kanalına yaz`}
-            className="selectable max-h-32 min-h-[40px] flex-1 resize-none bg-transparent py-2.5 text-[13.5px] text-ink outline-none placeholder:text-ink-4"
-          />
-          <Button variant="accent" size="icon" aria-label="Gönder" loading={sending} disabled={!body.trim()} onClick={() => void send()}>
-            {!sending && <SendHorizonal />}
-          </Button>
-        </div>
-      </footer>
-    </>
   );
 }

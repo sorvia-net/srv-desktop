@@ -119,7 +119,8 @@ export type AdminOrderDetail = {
 };
 export type StatusService = { id: string; name: string; description: string | null; group: string | null; status: "HEALTHY" | "WARNING" | "DEGRADED" | "DOWN" | "UNKNOWN"; latencyMs: number | null; checkedAt: string | null; uptime: { day: number | null; week: number | null; window: number | null }; days: { date: string; total: number; up: number; slow: number }[] };
 export type StatusBoard = { generatedAt: string; windowDays: number; stale: boolean; overall: { status: string; down: string[]; degraded: number; total: number }; services: StatusService[]; incidents: { id: string; title: string; severity: string; status: string; serviceName: string | null; startedAt: string; resolvedAt: string | null }[] };
-export type ChatMessage = { id: string; channelId: string; body: string; author: Person | null; createdAt: string; edited: boolean; pinned: boolean };
+export type ChatAttachment = { url: string; name: string; mime: string; size: number; kind: "image" | "audio" | "video" | "file"; duration?: number | null };
+export type ChatMessage = { id: string; channelId: string; body: string; author: Person | null; createdAt: string; edited: boolean; pinned: boolean; attachments?: ChatAttachment[]; reactions?: Record<string, string[]>; replyTo?: { id: string; body: string; author: Person | null } | null };
 
 export type HomeSummary = {
   greetingName: string;
@@ -338,6 +339,7 @@ export type SorviaBridge = {
   };
   api: {
     get<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<ApiResult<T>>;
+    upload<T>(path: string, bytes: Uint8Array, name: string, voice?: boolean): Promise<ApiResult<T>>;
     send<T>(method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<ApiResult<T>>;
   };
   mail: {

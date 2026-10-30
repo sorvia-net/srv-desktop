@@ -33,10 +33,41 @@ export type VoiceView = {
   sharing: boolean;
   camera: boolean;
   volumes: Record<string, number>;
+  ping: number | null;
+  serverPing: number | null;
   peers: (VoicePeer & { me: boolean; speaking: boolean; connection: RTCPeerConnectionState | "self"; hasScreen: boolean; hasCamera: boolean })[];
 };
 
 const VOLUME_KEY = "sorvia.voice.volumes";
+const DEVICE_KEY = "sorvia.voice.devices";
+const QUALITY_KEY = "sorvia.voice.quality";
+
+export type ShareQuality = { height: 720 | 1080 | 1440 | 0; fps: 15 | 30 | 60 };
+export type VoiceDevices = { input: string; output: string };
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    return { ...fallback, ...(JSON.parse(localStorage.getItem(key) ?? "{}") as Partial<T>) };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    void 0;
+  }
+}
+
+export function getDevices(): VoiceDevices {
+  return readJson<VoiceDevices>(DEVICE_KEY, { input: "default", output: "default" });
+}
+
+export function getShareQuality(): ShareQuality {
+  return readJson<ShareQuality>(QUALITY_KEY, { height: 1080, fps: 30 });
+}
 function loadVolumes(): Record<string, number> {
   try {
     return JSON.parse(localStorage.getItem(VOLUME_KEY) ?? "{}") as Record<string, number>;
@@ -45,7 +76,7 @@ function loadVolumes(): Record<string, number> {
   }
 }
 
-const IDLE: VoiceView = { status: "idle", error: null, channelId: null, channelName: null, peerId: null, muted: false, deafened: false, sharing: false, camera: false, volumes: {}, peers: [] };
+const IDLE: VoiceView = { status: "idle", error: null, channelId: null, channelName: null, peerId: null, muted: false, deafened: false, sharing: false, camera: false, volumes: {}, ping: null, serverPing: null, peers: [] };
 
 let view: VoiceView = { ...IDLE, volumes: loadVolumes() };
 const listeners = new Set<() => void>();
@@ -53,10 +84,12 @@ const remotes = new Map<string, Remote>();
 let local: MediaStream | null = null;
 let screen: MediaStream | null = null;
 let camera: MediaStream | null = null;
+let screenLabel: string | null = null;
 let ice: RTCIceServer[] = [];
 let outbox: { to: string; kind: string; payload: unknown }[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let meter: ReturnType<typeof setInterval> | null = null;
+let pinger: ReturnType<typeof setInterval> | null = null;
 let audioContext: AudioContext | null = null;
 let localLevel: (() => number) | null = null;
 const speaking = new Set<string>();
@@ -98,7 +131,12 @@ export function useVoice() {
 
 function videoOf(remote: Remote, kind: "screen" | "camera") {
   const id = remote.labels[kind];
-  if (id) return remote.videos.get(id) ?? null;
+  if (id && remote.videos.has(id)) return remote.videos.get(id)!;
+  if (id) {
+    const other = remote.labels[kind === "screen" ? "camera" : "screen"];
+    const rest = [...remote.videos.entries()].filter(([key]) => key !== other);
+    return rest.length === 1 ? rest[0]![1] : null;
+  }
   const other = remote.labels[kind === "screen" ? "camera" : "screen"];
   const unlabeled = [...remote.videos.entries()].filter(([key]) => key !== other);
   if (kind === "screen" && remote.info.sharing && !remote.info.camera) return unlabeled[0]?.[1] ?? null;
@@ -126,6 +164,71 @@ function applyVolume(remote: Remote) {
   const volume = volumeFor(remote.info.userId);
   remote.audio.volume = Math.min(1, Math.max(0, volume / 100));
   remote.audio.muted = view.deafened || volume === 0;
+  const sink = getDevices().output;
+  const element = remote.audio as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+  if (element.setSinkId && sink) void element.setSinkId(sink === "default" ? "" : sink).catch(() => undefined);
+}
+
+function micConstraints(): MediaTrackConstraints {
+  const input = getDevices().input;
+  return { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(input && input !== "default" ? { deviceId: { exact: input } } : {}) };
+}
+
+export async function setDevices(next: Partial<VoiceDevices>) {
+  const devices = { ...getDevices(), ...next };
+  writeJson(DEVICE_KEY, devices);
+  for (const remote of remotes.values()) applyVolume(remote);
+  if (next.input && local) {
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({ audio: micConstraints(), video: false });
+      const track = fresh.getAudioTracks()[0]!;
+      track.enabled = !view.muted && !view.deafened;
+      for (const remote of remotes.values()) {
+        const sender = remote.senders.find((item) => item.track?.kind === "audio");
+        if (sender) await sender.replaceTrack(track);
+      }
+      local.getAudioTracks().forEach((item) => item.stop());
+      local = fresh;
+      localLevel = analyser(fresh);
+    } catch {
+      set({ error: "Seçilen mikrofon açılamadı." });
+    }
+  }
+  emit();
+}
+
+export async function setShareQuality(next: Partial<ShareQuality>) {
+  const quality = { ...getShareQuality(), ...next };
+  writeJson(QUALITY_KEY, quality);
+  const track = screen?.getVideoTracks()[0];
+  if (track) await track.applyConstraints(shareConstraints(quality)).catch(() => undefined);
+  emit();
+}
+
+function shareConstraints(quality: ShareQuality): MediaTrackConstraints {
+  return { frameRate: { ideal: quality.fps, max: quality.fps }, ...(quality.height ? { height: { ideal: quality.height, max: quality.height } } : {}) };
+}
+
+async function measurePing() {
+  let best: number | null = null;
+  for (const remote of remotes.values()) {
+    try {
+      const stats = await remote.pc.getStats();
+      stats.forEach((report) => {
+        const pair = report as { type: string; state?: string; nominated?: boolean; currentRoundTripTime?: number };
+        if (pair.type === "candidate-pair" && pair.state === "succeeded" && pair.nominated && typeof pair.currentRoundTripTime === "number") {
+          const value = Math.round(pair.currentRoundTripTime * 1000);
+          best = best === null ? value : Math.max(best, value);
+        }
+      });
+    } catch {
+      void 0;
+    }
+  }
+  if (best !== view.ping) {
+    view = { ...view, ping: best };
+    emit();
+  }
 }
 
 export function setPeerVolume(userId: string, volume: number) {
@@ -141,7 +244,7 @@ export function setPeerVolume(userId: string, volume: number) {
 }
 
 function announce(to?: string) {
-  const payload = { screen: screen?.id ?? null, camera: camera?.id ?? null };
+  const payload = { screen: screen ? (screenLabel ?? screen.id) : null, camera: camera?.id ?? null };
   for (const id of to ? [to] : [...remotes.keys()]) send(id, "streams", payload);
 }
 
@@ -282,6 +385,7 @@ async function loop() {
   if (!view.peerId) return;
   const signals = outbox;
   outbox = [];
+  const started = performance.now();
   const result = await voiceApi.sync({ peerId: view.peerId, state: { muted: view.muted, deafened: view.deafened, sharing: view.sharing, camera: view.camera }, signals });
   if (!view.peerId) return;
   if (!result.ok) {
@@ -292,6 +396,7 @@ async function loop() {
     }
     outbox = [...signals, ...outbox];
   } else {
+    view = { ...view, serverPing: Math.round(performance.now() - started) };
     const before = new Set(roster.map((peer) => peer.id));
     roster = result.data.peers;
     const present = new Set(roster.map((peer) => peer.id));
@@ -303,7 +408,7 @@ async function loop() {
       if (peer.id === view.peerId) continue;
       const remote = remotes.get(peer.id);
       if (remote) remote.info = peer;
-      else if (view.peerId < peer.id) connect(peer);
+      else if (view.peerId && view.peerId < peer.id) connect(peer);
     }
     for (const signal of result.data.signals) await handleSignal(signal);
     emit();
@@ -327,7 +432,7 @@ export async function joinVoice(channelId: string) {
   if (view.peerId) await leaveVoice();
   set({ ...IDLE, volumes: view.volumes, status: "connecting", channelId });
   try {
-    local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    local = await navigator.mediaDevices.getUserMedia({ audio: micConstraints(), video: false }).catch(() => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false }));
   } catch {
     set({ ...IDLE, volumes: view.volumes, status: "error", error: "Mikrofona erişilemedi. Windows gizlilik ayarlarında mikrofon iznini kontrol et." });
     return;
@@ -346,6 +451,7 @@ export async function joinVoice(channelId: string) {
   playEffect("voice-join");
   for (const peer of roster) if (peer.id !== joined.data.peerId && joined.data.peerId < peer.id) connect(peer);
   meter = setInterval(measure, 200);
+  pinger = setInterval(() => void measurePing(), 3000);
   void loop();
   invalidate("chat:channels");
 }
@@ -355,6 +461,8 @@ export async function leaveVoice(notify = true) {
   if (peerId) playEffect("voice-leave");
   if (timer) clearTimeout(timer);
   if (meter) clearInterval(meter);
+  if (pinger) clearInterval(pinger);
+  pinger = null;
   timer = null;
   meter = null;
   for (const id of [...remotes.keys()]) disconnect(id);
@@ -391,15 +499,34 @@ export function toggleDeafen() {
 export async function startScreenShare(sourceId: string) {
   if (!view.peerId) return;
   await bridge.system.chooseScreen(sourceId);
+  const quality = getShareQuality();
+  let next: MediaStream;
   try {
-    screen = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false });
+    next = await navigator.mediaDevices.getDisplayMedia({ video: shareConstraints(quality), audio: false });
   } catch {
     set({ error: "Ekran paylaşımı başlatılamadı." });
     return;
   }
-  const track = screen.getVideoTracks()[0]!;
-  track.contentHint = "detail";
+  const track = next.getVideoTracks()[0]!;
+  track.contentHint = quality.fps >= 60 ? "motion" : "detail";
   track.onended = () => void stopScreenShare();
+  if (screen) {
+    const old = screen;
+    for (const remote of remotes.values()) {
+      if (remote.screenSender) await remote.screenSender.replaceTrack(track).catch(() => undefined);
+      else remote.screenSender = remote.pc.addTrack(track, next);
+    }
+    old.getTracks().forEach((item) => {
+      item.onended = null;
+      item.stop();
+    });
+    screen = next;
+    announce();
+    emit();
+    return;
+  }
+  screen = next;
+  screenLabel = next.id;
   for (const remote of remotes.values()) remote.screenSender = remote.pc.addTrack(track, screen);
   announce();
   set({ sharing: true });
@@ -418,6 +545,7 @@ export async function stopScreenShare() {
   }
   screen?.getTracks().forEach((track) => track.stop());
   screen = null;
+  screenLabel = null;
   announce();
   set({ sharing: false });
 }

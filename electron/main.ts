@@ -24,10 +24,10 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
+  "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self'",
-  "media-src 'self'",
+  "media-src 'self' blob: https://sorvia.net https://*.sorvia.net",
   "object-src 'none'",
   "worker-src 'none'",
   "base-uri 'none'",
@@ -124,6 +124,7 @@ function syncScreens() {
       ...display.workArea,
       show: false,
       frame: false,
+      skipTaskbar: true,
       backgroundColor: "#0d0a09",
       title: "Sorvia Desktop",
       icon: image("icon.png"),
@@ -474,6 +475,24 @@ async function pickWallpaper() {
   return wallpaperImage();
 }
 
+async function uploadRequest(path: unknown, bytes: unknown, name: unknown, voice: unknown) {
+  if (typeof path !== "string" || !/^\/api\/desktop\/chat\/[\w-]+\/upload$/.test(path) || !(bytes instanceof Uint8Array) || bytes.byteLength > 25 * 1024 * 1024) return { ok: false as const, status: 400, error: "invalid", message: "Dosya gönderilemedi." };
+  const token = auth.token();
+  if (!token) return { ok: false as const, status: 401, error: "unauthorized", message: "Oturum açık değil." };
+  try {
+    const response = await net.fetch(`${SERVER}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "User-Agent": userAgent(), "X-Sorvia-Client": "desktop", "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(typeof name === "string" ? name.slice(0, 160) : "dosya"), ...(voice ? { "X-Voice": "1" } : {}) },
+      body: new Uint8Array(bytes),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { data?: unknown; message?: string };
+    if (!response.ok) return { ok: false as const, status: response.status, error: "upload", message: payload.message ?? "Dosya gönderilemedi." };
+    return { ok: true as const, data: (payload.data ?? payload) as never };
+  } catch {
+    return { ok: false as const, status: 0, error: "network", message: "Sorvia'ya ulaşılamadı." };
+  }
+}
+
 async function avatarRequest(method: "PUT" | "DELETE", body?: Buffer) {
   const token = auth.token();
   if (!token) return { ok: false as const, status: 401, error: "unauthorized", message: "Oturum açık değil." };
@@ -592,6 +611,7 @@ function registerIpc() {
 
   handle("api:get", (path, query) => request("GET", path, query));
   handle("api:send", (method, path, body) => request(method, path, undefined, body));
+  handle("api:upload", (path, bytes, name, voice) => uploadRequest(path, bytes, name, voice));
 
   handle("mail:account", () => mail.info());
   handle("mail:accounts", () => mail.accounts());

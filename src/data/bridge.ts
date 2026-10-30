@@ -38,7 +38,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.9.3",
+    version: "0.9.4",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -74,6 +74,7 @@ function webBridge(): SorviaBridge {
     api: {
       get: async <T,>() => unavailable<T>(),
       send: async <T,>() => unavailable<T>(),
+      upload: async <T,>() => unavailable<T>(),
     },
     mail: {
       account: async () => null,

@@ -1,6 +1,6 @@
 import type {
   AdminOrderDetail, AdminOrderPage, AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
-  ApiResult, AppNotification, CalendarEvent, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
+  ApiResult, AppNotification, CalendarEvent, ChatAttachment, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
   TicketDetail, TicketSummary,
 } from "@shared/contracts";
 
@@ -62,7 +62,20 @@ export const api = {
   readNotifications: (ids: string[] | "all") => send<true>("POST", "/api/desktop/notifications/read", { ids }, () => preview.readNotifications(ids)),
   channels: () => get<ChatChannel[]>("/api/desktop/chat", undefined, () => preview.channels()),
   messages: (channelId: string) => get<ChatMessage[]>(`/api/desktop/chat/${channelId}`, undefined, () => preview.messages(channelId)),
-  postMessage: (channelId: string, body: string) => send<ChatMessage>("POST", `/api/desktop/chat/${channelId}`, { body }, () => preview.post(channelId, body)),
+  postMessage: (channelId: string, body: string, extra: { replyToId?: string | null; attachments?: ChatAttachment[] } = {}) =>
+    send<ChatMessage>("POST", `/api/desktop/chat/${channelId}`, { body, ...extra }, () => ({ ...preview.post(channelId, body), attachments: extra.attachments ?? [], reactions: {}, replyTo: null })),
+  uploadChat: async (channelId: string, bytes: Uint8Array, name: string, voice = false): Promise<ApiResult<ChatAttachment>> => {
+    if (previewMode) {
+      const mime = voice ? "audio/webm" : name.match(/\.(png|jpe?g|gif|webp)$/i) ? `image/${name.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")}` : "application/octet-stream";
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+      return ok({ url, name, mime, size: bytes.byteLength, kind: voice ? "audio" : mime.startsWith("image/") ? "image" : "file" });
+    }
+    return bridge.api.upload<ChatAttachment>(`/api/desktop/chat/${channelId}/upload`, bytes, name, voice);
+  },
+  editMessage: (id: string, body: string) => send<{ id: string; body: string }>("PATCH", `/api/desktop/chat/messages/${id}`, { body }, () => ({ id, body })),
+  deleteMessage: (id: string) => send<{ id: string }>("DELETE", `/api/desktop/chat/messages/${id}`, {}, () => ({ id })),
+  reactMessage: (id: string, emoji: string) => send<{ id: string; reactions: Record<string, string[]> }>("POST", `/api/desktop/chat/messages/${id}/react`, { emoji }, () => ({ id, reactions: { [emoji]: ["me"] } })),
+  pinMessage: (id: string) => send<{ id: string; pinned: boolean }>("POST", `/api/desktop/chat/messages/${id}/pin`, {}, () => ({ id, pinned: true })),
   store: () => get<StoreCatalog>("/api/desktop/store", undefined, () => preview.store()),
   unlockPassword: (password: string) => send<{ unlocked: true }>("POST", "/api/desktop/unlock/password", { password }, () => ({ unlocked: true as const })),
 };
