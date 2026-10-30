@@ -1,7 +1,7 @@
-import type { Accent, Density, IconSize, ToastPosition, UiStyle, Wallpaper } from "./appearance";
+import type { Accent, Density, IconSize, NotificationSound, ToastPosition, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web";
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status";
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
@@ -18,6 +18,7 @@ export type DesktopUser = {
   modules: ModuleId[];
   timeZone: string;
   memberSince: string;
+  unlock?: { password: boolean; passkey: boolean };
 };
 
 export type TaskStatus = "todo" | "doing" | "review" | "done";
@@ -92,7 +93,30 @@ export type AppNotification = {
   createdAt: string;
 };
 
-export type ChatChannel = { id: string; slug: string; name: string; topic: string | null; isPrivate: boolean; unread: number; lastMessageAt: string | null };
+export type VoicePeer = { id: string; userId: string; name: string; avatarUrl: string | null; muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; joinedAt: string };
+export type ChatChannel = { id: string; slug: string; name: string; topic: string | null; isPrivate: boolean; unread: number; lastMessageAt: string | null; kind?: "text" | "voice"; limit?: number | null; minRole?: Role; peers?: VoicePeer[] };
+export type VoiceJoin = { peerId: string; channel: { id: string; name: string }; peers: VoicePeer[]; iceServers: RTCIceServer[] };
+export type VoiceSync = { peers: VoicePeer[]; signals: { from: string; kind: "offer" | "answer" | "candidate" | "bye"; payload: unknown }[] };
+
+export type AdminUserRow = { id: string; name: string; email: string; avatarUrl: string | null; role: Role | "CUSTOMER"; roleLabel: string; status: string; createdAt: string; lastLoginAt: string | null; orders: number };
+export type AdminUserPage = { total: number; nextCursor: string | null; items: AdminUserRow[]; canEdit: boolean; canRoles: boolean };
+export type AdminUserDetail = Omit<AdminUserRow, "orders"> & {
+  username: string | null; lastLoginIp: string | null; loginCount: number; emailVerified: boolean; twoFactorEnabled: boolean; discordUsername: string | null; locale: string | null; walletBalance: number;
+  orders: { id: string; number: string; status: string; total: number; currency: string; createdAt: string }[];
+  licenses: { id: string; key: string; status: string; product: string }[];
+  counts: { orders: number; licenses: number; ticketsRequested: number; sessions: number };
+  canEdit: boolean; canRoles: boolean; roles: { value: string; label: string }[];
+};
+export type AdminOrderRow = { id: string; number: string; email: string; customer: string | null; avatarUrl: string | null; status: string; total: number; currency: string; provider: string | null; items: number; createdAt: string; paidAt: string | null };
+export type AdminOrderPage = { total: number; nextCursor: string | null; items: AdminOrderRow[]; summary: { awaiting: number; revenue: { currency: string; total: number; count: number }[] } };
+export type AdminOrderDetail = {
+  id: string; number: string; email: string; status: string; subtotal: number; discount: number; tax: number; total: number; currency: string; provider: string | null; providerRef: string | null; notes: string | null; country: string | null;
+  createdAt: string; paidAt: string | null; refundedAt: string | null; coupon: string | null; invoice: { number: string; status: string } | null; user: { id: string; name: string | null; email: string; avatarUrl: string | null } | null;
+  items: { id: string; name: string; quantity: number; unitPrice: number; total: number }[]; licenses: { id: string; key: string; status: string; product: string }[];
+  actions: { markPaid: boolean; cancel: boolean; refund: boolean };
+};
+export type StatusService = { id: string; name: string; description: string | null; group: string | null; status: "HEALTHY" | "WARNING" | "DEGRADED" | "DOWN" | "UNKNOWN"; latencyMs: number | null; checkedAt: string | null; uptime: { day: number | null; week: number | null; window: number | null }; days: { date: string; total: number; up: number; slow: number }[] };
+export type StatusBoard = { generatedAt: string; windowDays: number; stale: boolean; overall: { status: string; down: string[]; degraded: number; total: number }; services: StatusService[]; incidents: { id: string; title: string; severity: string; status: string; serviceName: string | null; startedAt: string; resolvedAt: string | null }[] };
 export type ChatMessage = { id: string; channelId: string; body: string; author: Person | null; createdAt: string; edited: boolean; pinned: boolean };
 
 export type HomeSummary = {
@@ -172,7 +196,10 @@ export type Preferences = {
   density: Density;
   shortcuts: Record<string, string>;
   toastPosition: ToastPosition;
+  notificationSound: NotificationSound;
 };
+
+export type UpdateStatus = { state: "idle" | "checking" | "latest" | "downloading" | "ready" | "error" | "unavailable"; version: string | null; percent: number | null; message: string | null };
 
 export type HomeLayout = { grid: string[]; dock: string[] };
 
@@ -336,6 +363,14 @@ export type SorviaBridge = {
     setBadge(count: number): void;
     checkUpdate(): Promise<UpdateInfo | null>;
     installUpdate(): void;
+    passkeyUnlock(): Promise<ApiResult<true>>;
+    unlockedVersion(): Promise<string | null>;
+    markUnlocked(): Promise<void>;
+    screenSources(): Promise<{ id: string; name: string; thumbnail: string; display: boolean }[]>;
+    chooseScreen(id: string | null): Promise<void>;
+    updateNow(): Promise<UpdateStatus>;
+    updateStatus(): Promise<UpdateStatus>;
+    onUpdateStatus(listener: (status: UpdateStatus) => void): () => void;
     onUpdateReady(listener: (version: string) => void): () => void;
     pickWallpaper(): Promise<string | null>;
     wallpaperImage(): Promise<string | null>;

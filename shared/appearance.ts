@@ -41,6 +41,9 @@ export const TOAST_POSITIONS = {
 } as const;
 export type ToastPosition = keyof typeof TOAST_POSITIONS;
 
+export const SOUNDS = { ses1: "Sorvia 1", ses2: "Sorvia 2", off: "Sessiz" } as const;
+export type NotificationSound = keyof typeof SOUNDS;
+
 export function isOneOf<T extends string>(list: readonly T[] | Record<T, unknown>, value: unknown): value is T {
   const keys = Array.isArray(list) ? list : Object.keys(list);
   return typeof value === "string" && (keys as string[]).includes(value);

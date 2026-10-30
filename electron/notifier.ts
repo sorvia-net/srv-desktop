@@ -11,7 +11,7 @@ const live = new Set<Notification>();
 
 export function toast(deps: Pick<Deps, "open" | "icon">, title: string, body: string, command: string | null) {
   if (!Notification.isSupported()) return;
-  const notification = new Notification({ title, body: body.slice(0, 240), icon: deps.icon(), silent: false });
+  const notification = new Notification({ title, body: body.slice(0, 240), icon: deps.icon(), silent: true });
   live.add(notification);
   const release = () => live.delete(notification);
   notification.on("click", () => {

@@ -1,4 +1,5 @@
 import type {
+  AdminOrderDetail, AdminOrderPage, AdminOrderRow, AdminUserDetail, AdminUserPage, AdminUserRow, StatusBoard,
   DriveFile, DriveFolder, DriveView, MediaItem, MediaPage, StorageOverview, StoreCatalog,
   AppNotification, CalendarEvent, ChatChannel, ChatMessage, DesktopUser, HomeSummary, MailFolder, MailMessage, MailSummary, Person, Task, TicketDetail, TicketSummary,
 } from "@shared/contracts";
@@ -34,8 +35,8 @@ export const previewUser: DesktopUser = {
   role: "SUPPORT",
   roleLabel: "Destek",
   title: "Müşteri Destek Uzmanı",
-  permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view", "media.view", "media.upload", "media.delete"],
-  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings"],
+  permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view", "media.view", "media.upload", "media.delete", "users.view", "orders.view"],
+  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status"],
   timeZone: "Europe/Istanbul",
   memberSince: at(-410, 9),
 };
@@ -252,6 +253,41 @@ let driveFiles: DriveFile[] = [
 
 let trashed: DriveFile[] = [driveFile("d10", "Eski teklif.pdf", null, 320_000, "application/pdf", 6)];
 
+
+const CUSTOMER_NAMES = ["Ada Oyun Stüdyosu", "Kuzey Yazılım", "Mavi Medya", "Barış Aydın", "Ece Yıldız", "Mert Kaya", "Selin Acar", "Onur Demir", "Zeynep Şahin", "Can Yurt", "Elif Koç", "Deniz Arı"];
+const ROLE_NAMES: Record<string, string> = { CUSTOMER: "Müşteri", SUPPORT: "Destek", DEVELOPER: "Geliştirici", MODERATOR: "Moderatör", ADMIN: "Yönetici", OWNER: "Kurucu" };
+const previewUsers: AdminUserRow[] = CUSTOMER_NAMES.map((name, index) => {
+  const role = (index === 3 ? "SUPPORT" : index === 5 ? "DEVELOPER" : index === 7 ? "MODERATOR" : "CUSTOMER") as AdminUserRow["role"];
+  return {
+    id: `u${index + 1}`,
+    name,
+    email: `${name.toLocaleLowerCase("tr").replace(/[^a-z]+/g, ".").replace(/^\.|\.$/g, "")}@ornek.com`,
+    avatarUrl: null,
+    role,
+    roleLabel: ROLE_NAMES[role]!,
+    status: index === 10 ? "SUSPENDED" : "ACTIVE",
+    createdAt: at(-30 * (index + 1), 10),
+    lastLoginAt: at(-index, 9 + (index % 8)),
+    orders: (index * 3) % 7,
+  };
+});
+
+const ORDER_STATUS = ["PAID", "FULFILLED", "AWAITING_PAYMENT", "PENDING", "REFUNDED", "CANCELLED", "FULFILLED", "FULFILLED"];
+const previewOrders: AdminOrderRow[] = Array.from({ length: 18 }, (_, index) => ({
+  id: `o${index + 1}`,
+  number: `SRV-2026-${String(1840 - index).padStart(5, "0")}`,
+  email: previewUsers[index % previewUsers.length]!.email,
+  customer: previewUsers[index % previewUsers.length]!.name,
+  avatarUrl: null,
+  status: ORDER_STATUS[index % ORDER_STATUS.length]!,
+  total: [24.99, 49.9, 119, 9.99, 299, 39.5][index % 6]!,
+  currency: index % 3 === 0 ? "TRY" : "EUR",
+  provider: ["paytr", "stripe", "bank", "tebex"][index % 4]!,
+  items: 1 + (index % 3),
+  createdAt: at(-index, 8 + (index % 10)),
+  paidAt: ["PAID", "FULFILLED", "REFUNDED"].includes(ORDER_STATUS[index % ORDER_STATUS.length]!) ? at(-index, 9 + (index % 10)) : null,
+}));
+
 export const preview = {
   home(): HomeSummary {
     const open = tasks.filter((item) => item.status !== "done");
@@ -421,5 +457,61 @@ export const preview = {
       trashed = body.action === "empty-trash" ? [] : trashed.filter((item) => !ids.has(item.id));
     }
     return { message: null };
+  },
+  users(params: { q?: string; role?: string; status?: string }) {
+    const q = (params.q ?? "").toLocaleLowerCase("tr");
+    const items = previewUsers.filter((user) => (!q || `${user.name} ${user.email}`.toLocaleLowerCase("tr").includes(q)) && (!params.role || (params.role === "staff" ? user.role !== "CUSTOMER" : user.role === params.role)) && (!params.status || user.status === params.status));
+    return { total: items.length, nextCursor: null, items, canEdit: false, canRoles: false } satisfies AdminUserPage;
+  },
+  user(id: string) {
+    const user = previewUsers.find((item) => item.id === id);
+    if (!user) return null;
+    return {
+      ...user,
+      username: null,
+      lastLoginIp: "88.230.12.4",
+      loginCount: 42,
+      emailVerified: true,
+      twoFactorEnabled: false,
+      discordUsername: null,
+      locale: "tr",
+      walletBalance: 12.5,
+      orders: previewOrders.filter((order) => order.email === user.email).map((order) => ({ id: order.id, number: order.number, status: order.status, total: order.total, currency: order.currency, createdAt: order.createdAt })),
+      licenses: [{ id: "l1", key: "••••4F2A", status: "ACTIVE", product: "SrvReward" }],
+      counts: { orders: user.orders, licenses: 1, ticketsRequested: 2, sessions: 3 },
+      canEdit: false,
+      canRoles: false,
+      roles: Object.entries(ROLE_NAMES).map(([value, label]) => ({ value, label })),
+    } satisfies AdminUserDetail;
+  },
+  orders(params: { q?: string; status?: string }) {
+    const q = (params.q ?? "").toLocaleLowerCase("tr");
+    const items = previewOrders.filter((order) => (!q || `${order.number} ${order.email}`.toLocaleLowerCase("tr").includes(q)) && (!params.status || (params.status === "open" ? ["PENDING", "AWAITING_PAYMENT"].includes(order.status) : order.status === params.status)));
+    return { total: items.length, nextCursor: null, items, summary: { awaiting: previewOrders.filter((order) => ["PENDING", "AWAITING_PAYMENT"].includes(order.status)).length, revenue: [{ currency: "EUR", total: 1849.6, count: 23 }, { currency: "TRY", total: 12450, count: 9 }] } } satisfies AdminOrderPage;
+  },
+  order(id: string) {
+    const order = previewOrders.find((item) => item.id === id);
+    if (!order) return null;
+    return {
+      id: order.id, number: order.number, email: order.email, status: order.status, subtotal: order.total, discount: 0, tax: 0, total: order.total, currency: order.currency, provider: order.provider, providerRef: "pi_3Q8x…", notes: null, country: "TR",
+      createdAt: order.createdAt, paidAt: order.paidAt, refundedAt: null, coupon: null, invoice: { number: "SRV2026000184", status: "PAID" }, user: { id: "u1", name: order.customer, email: order.email, avatarUrl: null },
+      items: [{ id: "i1", name: "SrvReward — Günlük Ödül", quantity: 1, unitPrice: order.total, total: order.total }],
+      licenses: [{ id: "l1", key: "••••4F2A", status: "ACTIVE", product: "SrvReward" }],
+      actions: { markPaid: false, cancel: false, refund: false },
+    } satisfies AdminOrderDetail;
+  },
+  status() {
+    const services = ["sorvia.net", "Lisans sunucusu", "Discord botu", "Ödeme altyapısı", "Command Center", "E-posta", "Yapay zekâ ağ geçidi"].map((name, index) => ({
+      id: `s${index}`,
+      name,
+      description: null,
+      group: index < 3 ? "Çekirdek" : "Altyapı",
+      status: (index === 3 ? "WARNING" : "HEALTHY") as StatusBoard["services"][number]["status"],
+      latencyMs: 40 + index * 23,
+      checkedAt: new Date().toISOString(),
+      uptime: { day: 100, week: index === 3 ? 99.2 : 99.98, window: 99.9 },
+      days: Array.from({ length: 30 }, (_, day) => ({ date: at(day - 29, 0).slice(0, 10), total: 288, up: day === 20 && index === 3 ? 270 : 288, slow: day % 9 === 0 ? 4 : 0 })),
+    }));
+    return { generatedAt: new Date().toISOString(), windowDays: 30, stale: false, overall: { status: "DEGRADED", down: [], degraded: 1, total: services.length }, services, incidents: [{ id: "i1", title: "Ödeme sağlayıcısında yavaşlık", severity: "MINOR", status: "monitoring", serviceName: "Ödeme altyapısı", startedAt: at(0, 9), resolvedAt: null }] } satisfies StatusBoard;
   },
 };

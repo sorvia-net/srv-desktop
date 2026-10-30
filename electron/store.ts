@@ -2,7 +2,7 @@ import { app, safeStorage } from "electron";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { ACCENTS, DENSITIES, ICON_SIZES, isOneOf, TOAST_POSITIONS, UI_STYLES, WALLPAPERS } from "../shared/appearance";
+import { ACCENTS, DENSITIES, ICON_SIZES, isOneOf, SOUNDS, TOAST_POSITIONS, UI_STYLES, WALLPAPERS } from "../shared/appearance";
 import type { DesktopUser, Preferences } from "../shared/contracts";
 import { sanitizeShortcuts } from "../shared/shortcuts";
 
@@ -24,6 +24,7 @@ export const DEFAULT_PREFS: Preferences = {
   density: "comfortable",
   shortcuts: {},
   toastPosition: "bottom-center",
+  notificationSound: "ses1",
 };
 
 type Shape = {
@@ -36,11 +37,12 @@ type Shape = {
   secrets: Record<string, string>;
   lastNotificationAt: string | null;
   trayHintShown: boolean;
+  unlockedVersion: string | null;
 };
 
 export type MailAccount = { id: string; address: string; name: string };
 
-const EMPTY: Shape = { prefs: DEFAULT_PREFS, user: null, session: null, mail: null, mailAccounts: [], activeMail: null, secrets: {}, lastNotificationAt: null, trayHintShown: false };
+const EMPTY: Shape = { prefs: DEFAULT_PREFS, user: null, session: null, mail: null, mailAccounts: [], activeMail: null, secrets: {}, lastNotificationAt: null, trayHintShown: false, unlockedVersion: null };
 
 let cache: Shape | null = null;
 
@@ -87,6 +89,7 @@ function sanitizePrefs(input: Record<string, unknown>): Preferences {
   if (isOneOf(DENSITIES, input.density)) prefs.density = input.density;
   prefs.shortcuts = sanitizeShortcuts(input.shortcuts);
   if (isOneOf(TOAST_POSITIONS, input.toastPosition)) prefs.toastPosition = input.toastPosition;
+  if (isOneOf(SOUNDS, input.notificationSound)) prefs.notificationSound = input.notificationSound;
   if (typeof input.pollSeconds === "number" && Number.isFinite(input.pollSeconds)) prefs.pollSeconds = Math.min(600, Math.max(15, Math.round(input.pollSeconds)));
   if (typeof input.doNotDisturb === "boolean") prefs.doNotDisturb = input.doNotDisturb;
   if (typeof input.autoLockMinutes === "number" && [0, 5, 15, 30, 60].includes(input.autoLockMinutes)) prefs.autoLockMinutes = input.autoLockMinutes;
@@ -167,6 +170,12 @@ export const store = {
   setLastNotificationAt(value: string | null) {
     update((shape) => {
       shape.lastNotificationAt = value;
+    });
+  },
+  unlockedVersion: () => load().unlockedVersion ?? null,
+  setUnlockedVersion(value: string | null) {
+    update((shape) => {
+      shape.unlockedVersion = value;
     });
   },
   trayHintShown: () => load().trayHintShown,

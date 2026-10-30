@@ -84,6 +84,21 @@ const APP_LIST: AppDef[] = [
     features: ["Depolama özeti", "Şifreli kurucu deposu", "İndirilenler"], screenshots: ["store/storage.jpg"],
   },
   {
+    kind: "app", id: "users", title: "Kullanıcılar", subtitle: "Hesaplar ve roller", category: "Yönetim", icon: Users, tile: "linear-gradient(160deg,#93c5fd 0%,#3b82f6 55%,#1d4ed8 100%)", folder: "folder-admin", permission: "users.view", version: "1.0", size: "0,6 MB",
+    description: "Müşteri ve ekip hesaplarını ara, ayrıntılarını gör; yetkin varsa rol değiştir, askıya al ya da yasakla.",
+    features: ["Arama ve ekip filtresi", "Rol ve durum değişikliği", "Sipariş ve lisans özeti"], screenshots: ["store/users.jpg"],
+  },
+  {
+    kind: "app", id: "orders", title: "Siparişler", subtitle: "Ödemeler ve iadeler", category: "Yönetim", icon: ShoppingCart, tile: "linear-gradient(160deg,#86efac 0%,#22c55e 55%,#15803d 100%)", folder: "folder-admin", permission: "orders.view", version: "1.0", size: "0,6 MB",
+    description: "Siparişleri izle, bekleyen havaleleri ödendi işaretle, iptal ve iade yap.",
+    features: ["Son 30 gün ciro", "Bekleyen ödemeler", "Ödendi / iptal / iade"], screenshots: ["store/orders.jpg"],
+  },
+  {
+    kind: "app", id: "status", title: "Durum", subtitle: "Servis sağlığı", category: "Yönetim", icon: Activity, tile: "linear-gradient(160deg,#6ee7b7 0%,#10b981 55%,#047857 100%)", folder: "folder-admin", version: "1.0", size: "0,3 MB",
+    description: "Sorvia servislerinin anlık durumu, gecikmeleri, 30 günlük geçmişi ve açık olaylar.",
+    features: ["Anlık durum", "30 günlük geçmiş", "Açık olaylar"], screenshots: ["store/status.jpg"],
+  },
+  {
     kind: "app", id: "store", title: "Mağaza", subtitle: "Modülleri keşfet", category: "Sistem", icon: ShoppingBag, tile: "linear-gradient(160deg,#7cc7ff 0%,#2f80ed 55%,#1c4fd1 100%)", system: true, version: "1.0", size: "0,5 MB",
     description: "Sorvia modüllerini yükle, kaldır ve güncelle.",
     features: [],
@@ -99,11 +114,8 @@ const LINK_LIST: LinkDef[] = [
   link("link-site", "Sorvia.net", "Ana site", Globe, "linear-gradient(160deg,#3a2c22 0%,#1d1612 100%)", SITE, "folder-links"),
   link("link-panel", "Panelim", "Müşteri paneli görünümü", UserRound, "linear-gradient(160deg,#a5b4fc 0%,#6366f1 55%,#4338ca 100%)", `${SITE}/panel`, "folder-links"),
   link("link-admin", "Yönetim", "Yönetim paneli", LayoutDashboard, "linear-gradient(160deg,#c4b5fd 0%,#8b5cf6 55%,#6d28d9 100%)", `${SITE}/admin`, "folder-admin", { permission: "dashboard.view" }),
-  link("link-orders", "Siparişler", "Siparişler ve ödemeler", ShoppingCart, "linear-gradient(160deg,#86efac 0%,#22c55e 55%,#15803d 100%)", `${SITE}/admin/siparisler`, "folder-admin", { permission: "orders.view" }),
-  link("link-users", "Kullanıcılar", "Hesaplar ve roller", Users, "linear-gradient(160deg,#93c5fd 0%,#3b82f6 55%,#1d4ed8 100%)", `${SITE}/admin/kullanicilar`, "folder-admin", { permission: "users.view" }),
   link("link-products", "Ürünler", "Katalog ve sürümler", Package, "linear-gradient(160deg,#fdba74 0%,#f97316 55%,#c2410c 100%)", `${SITE}/admin/urunler`, "folder-admin", { permission: "catalog.view" }),
   link("link-owners", "Kurucu paneli", "Finans, depo, evraklar", Crown, "linear-gradient(160deg,#fde68a 0%,#f59e0b 55%,#b45309 100%)", `${SITE}/owners`, "folder-admin", { role: "OWNER" }),
-  link("link-status", "Durum", "Servis durumu", Activity, "linear-gradient(160deg,#6ee7b7 0%,#10b981 55%,#047857 100%)", `${SITE}/durum`, "folder-links"),
   link("link-dev", "sorvia.dev", "Geliştirici dokümanları", Code2, "linear-gradient(160deg,#a78bfa 0%,#7c3aed 55%,#4c1d95 100%)", "https://sorvia.dev", "folder-links"),
   link("link-store", "Sorvia Store", "Giyim mağazası", Store, "linear-gradient(160deg,#f9a8d4 0%,#ec4899 55%,#be185d 100%)", "https://sorvia.store", "folder-links"),
   link("link-cc", "Command Center", "Altyapı paneli", Cpu, "linear-gradient(160deg,#5eead4 0%,#14b8a6 55%,#0f766e 100%)", "https://tr-sorvia-panelorg.sorvia.net", "folder-links", { role: "ADMIN" }),
@@ -139,7 +151,7 @@ export function setRemoteModules(list: StoreModule[]) {
 }
 
 export function catalog(): (AppDef | LinkDef)[] {
-  return [...APP_LIST, ...LINK_LIST, ...remote];
+  return [...APP_LIST, WEB_APP, ...LINK_LIST, ...remote];
 }
 
 export const DEFAULT_LAYOUT: HomeLayout = {
@@ -154,8 +166,8 @@ export function itemById(id: string): HomeItem | null {
 }
 
 const WEB_APP: AppDef = {
-  kind: "app", id: "web", title: "Web", subtitle: "Sorvia sayfaları", category: "Sistem", icon: Globe, tile: "linear-gradient(160deg,#9fd0ff 0%,#4b93f2 52%,#2457c8 100%)", system: true, version: "1.0", size: "—",
-  description: "Sorvia sayfalarını uygulamanın içinde açar.", features: [],
+  kind: "app", id: "web", title: "Tarayıcı", subtitle: "Sekmeli web tarayıcısı", category: "Sistem", icon: Globe, tile: "linear-gradient(160deg,#9fd0ff 0%,#4b93f2 52%,#2457c8 100%)", system: true, version: "1.0", size: "—",
+  description: "Sekmeli, adres çubuklu tarayıcı. Sorvia sayfaları ve diğer siteler uygulamanın içinde açılır.", features: ["Sekmeler (Ctrl+T / Ctrl+W)", "Adres ve arama çubuğu", "Oturumlar hatırlanır"],
 };
 
 export function appById(id: ModuleId) {
@@ -178,7 +190,7 @@ export function lockReason(item: AppDef | LinkDef, user: DesktopUser) {
 
 export function installedSet(installed: string[] | null, user: DesktopUser) {
   const all = catalog().filter((item) => available(item, user));
-  const ids = installed ? new Set([...installed, ...all.filter((item) => item.system).map((item) => item.id)]) : new Set(all.map((item) => item.id));
+  const ids = new Set([...(installed ?? []), ...all.filter((item) => item.system).map((item) => item.id)]);
   return new Set(all.filter((item) => ids.has(item.id)).map((item) => item.id));
 }
 

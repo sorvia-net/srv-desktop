@@ -14,7 +14,10 @@ import { Settings } from "@/screens/Settings";
 import { Storage } from "@/screens/Storage";
 import { Store } from "@/screens/Store";
 import { Tasks } from "@/screens/Tasks";
+import { Orders } from "@/screens/Orders";
+import { Status } from "@/screens/Status";
 import { Tickets } from "@/screens/Tickets";
+import { Users } from "@/screens/Users";
 import { Web } from "@/screens/Web";
 import { useSession } from "@/shell/context";
 
@@ -34,6 +37,9 @@ const SCREENS: Record<ModuleId, ComponentType> = {
   storage: Storage,
   store: Store,
   web: Web,
+  users: Users,
+  orders: Orders,
+  status: Status,
   settings: Settings,
 };
 

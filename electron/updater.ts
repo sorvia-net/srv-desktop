@@ -1,6 +1,7 @@
 import { app, BrowserWindow, nativeImage } from "electron";
 import electronUpdater from "electron-updater";
 
+import type { UpdateStatus } from "../shared/contracts";
 import { auth } from "./auth";
 import { SERVER } from "./config";
 
@@ -9,6 +10,14 @@ const { autoUpdater } = electronUpdater;
 let ready: string | null = null;
 let busy = false;
 let listener: (version: string) => void = () => undefined;
+let statusListener: (status: UpdateStatus) => void = () => undefined;
+let current: UpdateStatus = { state: "idle", version: null, percent: null, message: null };
+
+function setStatus(next: Partial<UpdateStatus>) {
+  current = { ...current, ...next };
+  statusListener(current);
+  return current;
+}
 
 const SPLASH = `<!doctype html><html><head><meta charset="utf-8"><style>
 html,body{margin:0;height:100%;background:transparent;font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;user-select:none;-webkit-app-region:drag}
@@ -106,6 +115,7 @@ export const updater = {
         await autoUpdater.downloadUpdate();
         ready = result.updateInfo.version;
         listener(ready);
+        setStatus({ state: "ready", version: ready, percent: 100 });
       }
     } catch {
       return;
@@ -115,6 +125,37 @@ export const updater = {
   },
 
   readyVersion: () => ready,
+
+  onStatus(callback: (status: UpdateStatus) => void) {
+    statusListener = callback;
+  },
+
+  status: () => current,
+
+  async manual(): Promise<UpdateStatus> {
+    if (ready) return setStatus({ state: "ready", version: ready, percent: 100, message: null });
+    if (!app.isPackaged) return setStatus({ state: "unavailable", message: "Geliştirme sürümünde güncelleme yapılmaz." });
+    if (!configure()) return setStatus({ state: "error", message: "Güncelleme için oturum açık olmalı." });
+    if (busy) return current;
+    busy = true;
+    setStatus({ state: "checking", message: null, percent: null });
+    const onProgress = (progress: { percent: number }) => setStatus({ state: "downloading", percent: Math.round(progress.percent) });
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      if (!result?.isUpdateAvailable || !result.updateInfo) return setStatus({ state: "latest", version: app.getVersion() });
+      setStatus({ state: "downloading", version: result.updateInfo.version, percent: 0 });
+      autoUpdater.on("download-progress", onProgress);
+      await autoUpdater.downloadUpdate();
+      ready = result.updateInfo.version;
+      listener(ready);
+      return setStatus({ state: "ready", version: ready, percent: 100 });
+    } catch (error) {
+      return setStatus({ state: "error", message: (error as Error).message.slice(0, 200) });
+    } finally {
+      autoUpdater.off("download-progress", onProgress);
+      busy = false;
+    }
+  },
 
   install() {
     if (ready) autoUpdater.quitAndInstall(true, true);

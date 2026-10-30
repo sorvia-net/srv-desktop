@@ -24,6 +24,7 @@ const DEFAULT_PREFS: Preferences = {
   density: "comfortable",
   shortcuts: {},
   toastPosition: "bottom-center",
+  notificationSound: "ses1",
 };
 
 function webBridge(): SorviaBridge {
@@ -34,7 +35,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.4.1",
+    version: "0.5.0",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -104,6 +105,14 @@ function webBridge(): SorviaBridge {
       setBadge: () => undefined,
       checkUpdate: async () => null,
       installUpdate: () => undefined,
+      passkeyUnlock: async () => unavailable(),
+      unlockedVersion: async () => "0.0.0",
+      markUnlocked: async () => undefined,
+      screenSources: async () => [],
+      chooseScreen: async () => undefined,
+      updateNow: async () => ({ state: "unavailable", version: null, percent: null, message: "Tarayıcı önizlemesinde güncelleme yok." }),
+      updateStatus: async () => ({ state: "idle", version: null, percent: null, message: null }),
+      onUpdateStatus: () => () => undefined,
       onUpdateReady: () => () => undefined,
       pickWallpaper: async () => null,
       wallpaperImage: async () => null,

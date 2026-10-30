@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, session, shell, Tray } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, session, shell, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
@@ -26,7 +26,7 @@ const CSP = [
   "img-src 'self' data: https:",
   "font-src 'self' data:",
   "connect-src 'self'",
-  "media-src 'none'",
+  "media-src 'self'",
   "object-src 'none'",
   "worker-src 'none'",
   "base-uri 'none'",
@@ -42,6 +42,8 @@ const MIME: Record<string, string> = {
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
   ".woff": "font/woff",
+  ".mp3": "audio/mpeg",
+  ".jpg": "image/jpeg",
 };
 
 protocol.registerSchemesAsPrivileged([{ scheme: "sorvia", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
@@ -104,12 +106,10 @@ function openSafe(url: unknown) {
   }
 }
 
-const WEB_HOSTS = /(^|\.)(sorvia\.net|sorvia\.dev|sorvia\.store)$/;
-
 function webAllowed(url: string) {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" && WEB_HOSTS.test(parsed.hostname);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
   } catch {
     return false;
   }
@@ -258,7 +258,51 @@ const notifier = createNotifier({
   },
 });
 
+let chosenScreen: string | null = null;
 let globalCombo = "";
+
+async function screenSources() {
+  const sources = await desktopCapturer.getSources({ types: ["screen", "window"], thumbnailSize: { width: 320, height: 180 } });
+  return sources
+    .filter((source) => source.name && !/Sorvia Desktop/i.test(source.name))
+    .slice(0, 24)
+    .map((source) => ({ id: source.id, name: source.id.startsWith("screen:") ? `Ekran ${source.display_id || ""}`.trim() : source.name, thumbnail: source.thumbnail.toDataURL(), display: source.id.startsWith("screen:") }));
+}
+
+async function passkeyUnlock() {
+  const started = await request<{ code: string; url: string }>("POST", "/api/desktop/unlock/passkey", undefined, {});
+  if (!started.ok) return started;
+  const popup = new BrowserWindow({
+    width: 460,
+    height: 560,
+    parent: win ?? undefined,
+    modal: Boolean(win),
+    title: "Geçiş anahtarıyla doğrula",
+    autoHideMenuBar: true,
+    backgroundColor: "#0d0a09",
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: "sorvia-unlock" },
+  });
+  popup.setMenu(null);
+  void popup.loadURL(started.data.url);
+  const deadline = Date.now() + 5 * 60_000;
+  return new Promise<{ ok: true; data: true } | { ok: false; status: number; error: string; message: string }>((resolve) => {
+    let done = false;
+    const finish = (value: { ok: true; data: true } | { ok: false; status: number; error: string; message: string }) => {
+      if (done) return;
+      done = true;
+      clearInterval(timer);
+      if (!popup.isDestroyed()) setTimeout(() => !popup.isDestroyed() && popup.destroy(), value.ok ? 700 : 0);
+      resolve(value);
+    };
+    popup.on("closed", () => setTimeout(() => finish({ ok: false, status: 0, error: "cancelled", message: "Doğrulama penceresi kapatıldı." }), 1500));
+    const timer = setInterval(async () => {
+      if (Date.now() > deadline) return finish({ ok: false, status: 408, error: "timeout", message: "Doğrulama zaman aşımına uğradı." });
+      const state = await request<{ state: string }>("GET", "/api/desktop/unlock/passkey", { code: started.data.code });
+      if (state.ok && state.data.state === "verified") finish({ ok: true, data: true });
+      else if (state.ok && state.data.state === "expired") finish({ ok: false, status: 410, error: "expired", message: "Doğrulama süresi doldu." });
+    }, 1500);
+  });
+}
 
 function registerGlobal(prefs: Preferences) {
   const combo = resolveShortcuts(prefs.shortcuts).global;
@@ -425,6 +469,15 @@ function registerIpc() {
   handle("system:pickWallpaper", () => pickWallpaper());
   handle("system:wallpaperImage", () => wallpaperImage());
   on("system:installUpdate", () => updater.install());
+  handle("system:passkeyUnlock", () => passkeyUnlock());
+  handle("system:unlockedVersion", () => store.unlockedVersion());
+  handle("system:markUnlocked", () => store.setUnlockedVersion(app.getVersion()));
+  handle("system:screenSources", () => screenSources());
+  handle("system:chooseScreen", (id) => {
+    chosenScreen = typeof id === "string" ? id : null;
+  });
+  handle("system:updateNow", () => updater.manual());
+  handle("system:updateStatus", () => updater.status());
   handle("system:updateReady", () => updater.readyVersion());
   handle("account:pickAvatar", () => pickAvatar());
   handle("account:removeAvatar", () => avatarRequest("DELETE"));
@@ -455,8 +508,22 @@ function registerProtocol() {
 
 function hardenSession() {
   const ses = session.defaultSession;
-  ses.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === "clipboard-sanitized-write"));
-  ses.setPermissionCheckHandler((_contents, permission) => permission === "clipboard-sanitized-write");
+  ses.setPermissionRequestHandler((contents, permission, callback, details) => {
+    if (permission === "clipboard-sanitized-write") return callback(true);
+    const fromApp = isAppUrl(details.requestingUrl ?? contents.getURL());
+    callback(fromApp && (permission === "media" || permission === "display-capture" || permission === "speaker-selection"));
+  });
+  ses.setPermissionCheckHandler((_contents, permission, origin) => permission === "clipboard-sanitized-write" || ((permission === "media" || permission === "speaker-selection") && isAppUrl(`${origin}/`)));
+  ses.setDisplayMediaRequestHandler(async (_request, callback) => {
+    const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
+    const chosen = sources.find((source) => source.id === chosenScreen) ?? sources.find((source) => source.id.startsWith("screen:"));
+    chosenScreen = null;
+    if (!chosen) return callback({});
+    callback({ video: chosen });
+  });
+  const web = session.fromPartition("persist:sorvia-web");
+  web.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === "fullscreen" || permission === "clipboard-sanitized-write"));
+  web.setPermissionCheckHandler((_contents, permission) => permission === "fullscreen" || permission === "clipboard-sanitized-write");
   ses.setDevicePermissionHandler(() => false);
   ses.on("will-download", (event) => event.preventDefault());
 }
@@ -505,6 +572,7 @@ if (!app.requestSingleInstanceLock()) {
 
     auth.restore();
     if (!startHidden && !(await updater.startup(asset("icon.png")))) return;
+    updater.onStatus((status) => send("system:updateStatus", status));
     updater.onReady((version) => {
       send("system:updateReady", version);
       toast({ open: command, icon: () => image("icon.png") }, `Sorvia Desktop ${version} hazır`, "Yeniden başlattığında güncelleme kurulacak.", null);

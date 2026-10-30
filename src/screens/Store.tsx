@@ -18,9 +18,10 @@ export function Store() {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [showLocked, setShowLocked] = useState(false);
 
   const categories = useMemo(() => [...new Set(items.map((item) => item.category))], [items]);
-  const list = items.filter((item) => (!category || item.category === category) && (!q || `${item.title} ${item.subtitle} ${item.description}`.toLocaleLowerCase("tr").includes(q.toLocaleLowerCase("tr"))));
+  const list = items.filter((item) => (showLocked || available(item, session.user)) && (!category || item.category === category) && (!q || `${item.title} ${item.subtitle} ${item.description}`.toLocaleLowerCase("tr").includes(q.toLocaleLowerCase("tr"))));
   const featured = items.find((item) => item.id === modules.featured) ?? null;
   const current = items.find((item) => item.id === selected) ?? null;
   const updates = items.filter((item) => modules.installed.has(item.id)).length;
@@ -59,9 +60,12 @@ export function Store() {
               </button>
             )}
 
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
               <Chip label="Tümü" active={!category} onClick={() => setCategory(null)} />
               {categories.map((entry) => <Chip key={entry} label={entry} active={category === entry} onClick={() => setCategory(entry)} />)}
+              <button onClick={() => setShowLocked((value) => !value)} className="ml-auto text-[12.5px] text-ink-3 hover:text-ink">
+                {showLocked ? "Yalnızca erişebildiklerim" : "Yetkim olmayanları da göster"}
+              </button>
             </div>
 
             <div className="grid gap-3 pb-8 sm:grid-cols-2 xl:grid-cols-3">

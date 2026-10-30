@@ -1,4 +1,5 @@
 import type {
+  AdminOrderDetail, AdminOrderPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
   ApiResult, AppNotification, CalendarEvent, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
   TicketDetail, TicketSummary,
 } from "@shared/contracts";
@@ -63,6 +64,26 @@ export const api = {
   messages: (channelId: string) => get<ChatMessage[]>(`/api/desktop/chat/${channelId}`, undefined, () => preview.messages(channelId)),
   postMessage: (channelId: string, body: string) => send<ChatMessage>("POST", `/api/desktop/chat/${channelId}`, { body }, () => preview.post(channelId, body)),
   store: () => get<StoreCatalog>("/api/desktop/store", undefined, () => preview.store()),
+  unlockPassword: (password: string) => send<{ unlocked: true }>("POST", "/api/desktop/unlock/password", { password }, () => ({ unlocked: true as const })),
+};
+
+export const adminApi = {
+  users: (params: { q?: string; role?: string; status?: string; cursor?: string }) => get<AdminUserPage>("/api/desktop/users", params, () => preview.users(params)),
+  user: (id: string) => get<AdminUserDetail>(`/api/desktop/users/${id}`, undefined, () => preview.user(id)),
+  updateUser: (id: string, patch: { role?: string; status?: string }) => send<AdminUserDetail>("PATCH", `/api/desktop/users/${id}`, patch, () => preview.user(id)),
+  orders: (params: { q?: string; status?: string; cursor?: string }) => get<AdminOrderPage>("/api/desktop/orders", params, () => preview.orders(params)),
+  order: (id: string) => get<AdminOrderDetail>(`/api/desktop/orders/${id}`, undefined, () => preview.order(id)),
+  orderAction: (id: string, action: "mark-paid" | "cancel" | "refund") => send<AdminOrderDetail>("POST", `/api/desktop/orders/${id}`, { action }, () => preview.order(id)),
+  status: () => get<StatusBoard>("/api/desktop/status", undefined, () => preview.status()),
+};
+
+export const voiceApi = {
+  createChannel: (input: { name: string; kind: "text" | "voice"; topic?: string; limit?: number | null; minRole?: string }) => send<{ id: string }>("POST", "/api/desktop/chat/channels", input, () => null),
+  updateChannel: (id: string, patch: { name?: string; topic?: string; limit?: number | null; minRole?: string; order?: number }) => send<{ id: string }>("PATCH", `/api/desktop/chat/channels/${id}`, patch, () => null),
+  deleteChannel: (id: string) => send<{ deleted: true }>("DELETE", `/api/desktop/chat/channels/${id}`, undefined, () => null),
+  join: (channelId: string) => send<VoiceJoin>("POST", `/api/desktop/voice/${channelId}`, {}, () => null),
+  sync: (body: { peerId: string; state: Record<string, boolean>; signals: { to: string; kind: string; payload: unknown }[] }) => send<VoiceSync>("POST", "/api/desktop/voice/sync", body, () => null),
+  leave: (peerId: string) => send<{ left: true }>("POST", "/api/desktop/voice/leave", { peerId }, () => null),
 };
 
 export const galleryApi = {

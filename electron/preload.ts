@@ -64,6 +64,14 @@ const bridge: SorviaBridge = {
     setBadge: (count) => ipcRenderer.send("system:setBadge", count),
     checkUpdate: () => ipcRenderer.invoke("system:checkUpdate"),
     installUpdate: () => ipcRenderer.send("system:installUpdate"),
+    passkeyUnlock: () => ipcRenderer.invoke("system:passkeyUnlock"),
+    unlockedVersion: () => ipcRenderer.invoke("system:unlockedVersion"),
+    markUnlocked: () => ipcRenderer.invoke("system:markUnlocked"),
+    screenSources: () => ipcRenderer.invoke("system:screenSources"),
+    chooseScreen: (id) => ipcRenderer.invoke("system:chooseScreen", id),
+    updateNow: () => ipcRenderer.invoke("system:updateNow"),
+    updateStatus: () => ipcRenderer.invoke("system:updateStatus"),
+    onUpdateStatus: (listener) => listen("system:updateStatus", listener),
     onUpdateReady: (listener) => {
       void ipcRenderer.invoke("system:updateReady").then((version: string | null) => {
         if (version) listener(version);

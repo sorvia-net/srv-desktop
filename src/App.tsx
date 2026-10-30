@@ -9,6 +9,7 @@ import { api, mailApi, setPreviewMode } from "@/data/api";
 import { bridge } from "@/data/bridge";
 import { previewUser } from "@/data/preview";
 import { clearQueries, invalidate, useQuery } from "@/data/query";
+import { playSound } from "@/data/sound";
 import { Spinner } from "@/design/ui";
 import { ControlCenter } from "@/os/ControlCenter";
 import { BadgeContext, HomeScreen } from "@/os/Home";
@@ -150,8 +151,30 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     bridge.system.setBadge(unread + mailUnread);
   }, [unread, mailUnread]);
 
+  const previousUnread = useRef<number | null>(null);
+  useEffect(() => {
+    if (!notes.data) return;
+    if (previousUnread.current !== null && unread > previousUnread.current && !session.prefs.doNotDisturb) playSound(session.prefs.notificationSound);
+    previousUnread.current = unread;
+  }, [unread, notes.data, session.prefs.doNotDisturb, session.prefs.notificationSound]);
+
+  useEffect(
+    () =>
+      bridge.mail.onNewMail(() => {
+        const prefs = latest.current.session.prefs;
+        if (!prefs.doNotDisturb) playSound(prefs.notificationSound);
+      }),
+    [],
+  );
+
   useEffect(() => bridge.mail.onNewMail(() => invalidate("mail:")), []);
   const [update, setUpdate] = useState<string | null>(null);
+  useEffect(() => {
+    if (session.preview) return;
+    void bridge.system.unlockedVersion().then((version) => {
+      if (version !== bridge.version) latest.current.os.lock();
+    });
+  }, [session.preview]);
   useEffect(() => bridge.system.onUpdateReady(setUpdate), []);
 
   const latest = useRef({ os, overlay, session, installed });

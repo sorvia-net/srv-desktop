@@ -1,13 +1,14 @@
-import { Camera, Check, ExternalLink, ImagePlus, Info, Keyboard, LogOut, Mail, Monitor, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Camera, Check, RefreshCw, ExternalLink, ImagePlus, Info, Keyboard, LogOut, Mail, Monitor, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
-import { ACCENTS, DENSITIES, ICON_SIZES, TOAST_POSITIONS, UI_STYLES, WALLPAPER_LABEL, type ToastPosition, type Accent, type Density, type IconSize, type UiStyle, type Wallpaper } from "@shared/appearance";
-import type { MailAccountInfo, UpdateInfo } from "@shared/contracts";
+import { ACCENTS, DENSITIES, ICON_SIZES, SOUNDS, TOAST_POSITIONS, type NotificationSound, UI_STYLES, WALLPAPER_LABEL, type ToastPosition, type Accent, type Density, type IconSize, type UiStyle, type Wallpaper } from "@shared/appearance";
+import type { MailAccountInfo, UpdateStatus } from "@shared/contracts";
 import { comboFromEvent, resolveShortcuts, SHORTCUT_ACTIONS, type ShortcutAction } from "@shared/shortcuts";
 import { isPreview } from "@/data/api";
 import { bridge } from "@/data/bridge";
 import { invalidate, useQuery } from "@/data/query";
+import { playSound } from "@/data/sound";
 import { Avatar, cn, Kbd, Segmented, Spinner, Switch } from "@/design/ui";
 import { useOs } from "@/os/state";
 import { useSession } from "@/shell/context";
@@ -24,7 +25,6 @@ const WALLPAPER_PREVIEW: Record<Exclude<Wallpaper, "custom">, string> = {
 export function Settings() {
   const session = useSession();
   const prefs = session.prefs;
-  const update = useQuery<UpdateInfo | null>("system:update", async () => ({ ok: true, data: await bridge.system.checkUpdate() }));
   const server = session.auth.status === "signedIn" ? session.auth.server : session.preview ? "Önizleme" : "-";
   const expires = session.auth.status === "signedIn" ? new Date(session.auth.expiresAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" }) : "-";
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -76,6 +76,15 @@ export function Settings() {
         <Group title="Bildirimler" footer="Rahatsız etmeyin açıkken Windows bildirimleri susar; bildirimler merkezde birikmeye devam eder.">
           <Toggle label="Windows bildirimleri" checked={prefs.nativeNotifications} onChange={(value) => session.setPrefs({ nativeNotifications: value })} />
           <Toggle label="Rahatsız etmeyin" checked={prefs.doNotDisturb} onChange={(value) => session.setPrefs({ doNotDisturb: value })} />
+          <Choice<NotificationSound>
+            label="Bildirim sesi"
+            value={prefs.notificationSound}
+            onChange={(value) => {
+              session.setPrefs({ notificationSound: value });
+              playSound(value, true);
+            }}
+            options={(Object.keys(SOUNDS) as NotificationSound[]).map((value) => ({ value, label: SOUNDS[value] }))}
+          />
           <div className="flex items-center justify-between gap-4 px-5 py-3">
             <span className="text-[14px] text-ink">Uygulama içi bildirim konumu</span>
             <div className="grid grid-cols-3 gap-1.5 rounded-[14px] bg-black/25 p-1.5">
@@ -107,15 +116,10 @@ export function Settings() {
           <Toggle label="Dış görselleri postalarda her zaman göster" checked={prefs.showRemoteImages} onChange={(value) => session.setPrefs({ showRemoteImages: value })} />
         </Group>
 
-        <Group title="Hakkında" footer="Uygulama her açılışta güncellemeleri denetler; yeni sürüm varsa indirip kendini günceller.">
+        <SoftwareUpdate />
+
+        <Group title="Hakkında">
           <Row label="Sorvia Desktop" value={`Sürüm ${bridge.version}`} icon={<Info className="size-4" />} />
-          {update.data?.available && (
-            <button onClick={() => bridge.system.installUpdate()} className="focus-ring flex w-full items-center gap-3 bg-accent/[0.1] px-5 py-3.5 text-left text-[14px] text-ink hover:bg-accent/[0.16]">
-              <span className="size-2 rounded-full bg-accent" />
-              <span className="flex-1">Yeni sürüm: {update.data.latest}</span>
-              <span className="text-[13px] font-semibold text-accent-2">Yeniden başlat ve güncelle</span>
-            </button>
-          )}
           <button onClick={() => void bridge.system.openExternal("https://sorvia.net/panel/hesap/guvenlik")} className="focus-ring flex w-full items-center justify-between px-5 py-3.5 text-left text-[14px] text-ink hover:bg-white/[0.04]">
             Oturumlarımı yönet (sorvia.net)
             <ExternalLink className="size-4 text-ink-3" />
@@ -323,5 +327,53 @@ function Choice<T extends string>({ label, value, options, onChange }: { label: 
       <span className="text-[14px] text-ink">{label}</span>
       <Segmented<T> size="sm" value={value} onChange={onChange} options={options} />
     </div>
+  );
+}
+
+const UPDATE_TEXT: Record<UpdateStatus["state"], string> = {
+  idle: "Güncellemeler her açılışta ve 4 saatte bir otomatik denetlenir.",
+  checking: "Güncellemeler denetleniyor…",
+  latest: "Sorvia Desktop güncel.",
+  downloading: "Güncelleme indiriliyor…",
+  ready: "Güncelleme hazır. Yeniden başlatınca kurulacak.",
+  error: "Güncelleme denetlenemedi.",
+  unavailable: "Bu sürümde güncelleme yapılamıyor.",
+};
+
+function SoftwareUpdate() {
+  const [status, setStatus] = useState<UpdateStatus>({ state: "idle", version: null, percent: null, message: null });
+  useEffect(() => {
+    void bridge.system.updateStatus().then(setStatus);
+    return bridge.system.onUpdateStatus(setStatus);
+  }, []);
+  const busy = status.state === "checking" || status.state === "downloading";
+  return (
+    <Group title="Yazılım güncelleme">
+      <div className="flex items-center gap-4 px-5 py-4">
+        <span className={cn("flex size-12 shrink-0 items-center justify-center rounded-[14px]", status.state === "ready" ? "accent-fill" : "bg-white/[0.08] text-ink-2")}>
+          {busy ? <Spinner className="size-5" /> : <RefreshCw className="size-5" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-semibold text-ink">
+            Sorvia Desktop {status.state === "ready" || status.state === "downloading" ? status.version : bridge.version}
+          </p>
+          <p className="mt-0.5 text-[12.5px] text-ink-3">{status.message ?? UPDATE_TEXT[status.state]}</p>
+          {status.state === "downloading" && (
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${status.percent ?? 0}%` }} />
+            </div>
+          )}
+        </div>
+        {status.state === "ready" ? (
+          <button onClick={() => bridge.system.installUpdate()} className="accent-fill rounded-full px-4 py-2 text-[13px] font-semibold">
+            Yeniden başlat ve yükle
+          </button>
+        ) : (
+          <button disabled={busy} onClick={() => void bridge.system.updateNow().then(setStatus)} className="rounded-full bg-white/[0.09] px-4 py-2 text-[13px] font-medium text-ink hover:bg-white/[0.14] disabled:opacity-50">
+            {busy ? (status.state === "downloading" ? `%${status.percent ?? 0}` : "Denetleniyor…") : "Güncellemeleri denetle"}
+          </button>
+        )}
+      </div>
+    </Group>
   );
 }
