@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 
 import type { DesktopUser, HomeLayout, ModuleId, StoreModule } from "@shared/contracts";
 import { bridge } from "@/data/bridge";
-import { siDiscord, siSpotify, siTelegram, siWhatsapp, siYoutubemusic } from "simple-icons";
+import { siApplemusic, siDiscord, siSpotify, siTelegram, siWhatsapp, siYoutubemusic } from "simple-icons";
 
 export type ModuleDef = {
   id: string;
@@ -140,6 +140,7 @@ const LINK_LIST: LinkDef[] = [
   link("link-store", "Sorvia Store", "Giyim mağazası", Store, "linear-gradient(160deg,#f9a8d4 0%,#ec4899 55%,#be185d 100%)", "https://sorvia.store", "folder-links"),
   link("link-cc", "Command Center", "Altyapı paneli", Cpu, "linear-gradient(160deg,#5eead4 0%,#14b8a6 55%,#0f766e 100%)", "https://tr-sorvia-panelorg.sorvia.net", "folder-links", { role: "ADMIN" }),
   appWindow("app-spotify", "Spotify", "Müzik ve podcast", Music, "#121212", "https://open.spotify.com", { path: siSpotify.path, fg: "#1ed760", bg: "#121212" }),
+  appWindow("app-applemusic", "Apple Music", "Müzik", Music, "#fa2d48", "https://music.apple.com", { path: siApplemusic.path, fg: "#ffffff", bg: "linear-gradient(180deg,#ff5f73 0%,#fa2d48 55%,#e01b3c 100%)", scale: 0.58 }),
   appWindow("app-whatsapp", "WhatsApp", "Mesajlaşma", MessageCircle, "#25d366", "https://web.whatsapp.com", { path: siWhatsapp.path, fg: "#ffffff", bg: "linear-gradient(180deg,#5ff07f 0%,#25d366 55%,#1cb956 100%)" }),
   appWindow("app-discord", "Discord", "Sunucular ve sohbet", Headphones, "#5865f2", "https://discord.com/app", { path: siDiscord.path, fg: "#ffffff", bg: "#5865f2", scale: 0.56 }),
   appWindow("app-ytmusic", "YouTube Music", "Müzik", Disc3, "#000000", "https://music.youtube.com", { path: siYoutubemusic.path, fg: "#ff0000", bg: "#000000", scale: 0.66 }),

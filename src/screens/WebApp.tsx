@@ -73,7 +73,7 @@ export function WebApp({ id }: { id: string }) {
         <IconButton label="İleri" size={30} disabled={!nav.forward} onClick={() => ref.current?.goForward()}><ArrowRight className="size-4" /></IconButton>
         <IconButton label="Yenile" size={30} onClick={() => ref.current?.reload()}><RotateCw className={nav.loading ? "size-4 animate-spin" : "size-4"} /></IconButton>
         <span className="ml-2 text-[13px] font-semibold text-ink">{item.title}</span>
-        {item.id === "app-spotify" && <span className="ml-2 truncate text-[11.5px] text-ink-4">Şarkı çalmazsa sağdaki düğmeyle ayrı pencerede aç</span>}
+        {(item.id === "app-spotify" || item.id === "app-applemusic") && <span className="ml-2 truncate text-[11.5px] text-ink-4">Şarkı çalmazsa sağdaki düğmeyle ayrı pencerede aç</span>}
         <span className="flex-1" />
         <IconButton label="Ayrı pencerede aç" size={30} onClick={() => void bridge.system.openAppWindow(ref.current?.getURL() || item.url, item.id)}><ExternalLink className="size-4" /></IconButton>
       </div>

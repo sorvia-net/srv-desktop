@@ -236,7 +236,7 @@ function harden(contents: WebContents) {
   });
 }
 
-const APP_WINDOW_HOSTS = ["open.spotify.com", "web.whatsapp.com", "discord.com", "music.youtube.com", "www.youtube.com", "web.telegram.org"];
+const APP_WINDOW_HOSTS = ["open.spotify.com", "web.whatsapp.com", "discord.com", "music.youtube.com", "music.apple.com", "www.youtube.com", "web.telegram.org"];
 
 function chromiumBrowser() {
   const roots = [process.env["ProgramFiles(x86)"], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean) as string[];
