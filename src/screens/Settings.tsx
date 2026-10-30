@@ -465,7 +465,7 @@ function FaceUnlock() {
           <button type="button" onClick={() => setAsking(false)} className="text-[12.5px] text-ink-3 hover:text-ink">Vazgeç</button>
         </form>
       )}
-      {methods.passkey && <Toggle label="Kilit ekranında Windows Hello'yu kendiliğinden başlat" checked={session.prefs.faceAuto} onChange={(value) => session.setPrefs({ faceAuto: value })} />}
+
     </>
   );
 }
