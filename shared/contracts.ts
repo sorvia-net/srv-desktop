@@ -387,7 +387,7 @@ export type SorviaBridge = {
     onActivateApp(listener: (value: { id: string; params: Record<string, string> | null }) => void): () => void;
     onLockState(listener: (locked: boolean) => void): () => void;
     screenSources(): Promise<{ id: string; name: string; thumbnail: string; display: boolean }[]>;
-    chooseScreen(id: string | null): Promise<void>;
+    chooseScreen(id: string | null, audio?: boolean): Promise<void>;
     updateNow(): Promise<UpdateStatus>;
     updateStatus(): Promise<UpdateStatus>;
     onUpdateStatus(listener: (status: UpdateStatus) => void): () => void;

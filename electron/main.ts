@@ -407,6 +407,7 @@ const notifier = createNotifier({
 });
 
 let chosenScreen: string | null = null;
+let chosenAudio = false;
 let globalCombo = "";
 
 async function screenSources() {
@@ -702,8 +703,9 @@ function registerIpc() {
   handle("system:unlockedVersion", () => store.unlockedVersion());
   handle("system:markUnlocked", () => store.setUnlockedVersion(app.getVersion()));
   handle("system:screenSources", () => screenSources());
-  handle("system:chooseScreen", (id) => {
+  handle("system:chooseScreen", (id, audio) => {
     chosenScreen = typeof id === "string" ? id : null;
+    chosenAudio = audio === true;
   });
   handle("system:updateNow", () => updater.manual());
   handle("system:updateStatus", () => updater.status());
@@ -746,9 +748,11 @@ function hardenSession() {
   ses.setDisplayMediaRequestHandler(async (_request, callback) => {
     const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
     const chosen = sources.find((source) => source.id === chosenScreen) ?? sources.find((source) => source.id.startsWith("screen:"));
+    const audio = chosenAudio && process.platform === "win32";
     chosenScreen = null;
+    chosenAudio = false;
     if (!chosen) return callback({});
-    callback({ video: chosen });
+    callback(audio ? { video: chosen, audio: "loopback" } : { video: chosen });
   });
   const web = session.fromPartition("persist:sorvia-web");
   web.webRequest.onCompleted({ urls: ["https://*.apple.com/*", "https://*.spotify.com/*", "https://*.scdn.co/*"] }, (details) => {

@@ -6,7 +6,7 @@ import type { ChatChannel, ChatPerson } from "@shared/contracts";
 import { api, peopleApi, voiceApi } from "@/data/api";
 import { bridge } from "@/data/bridge";
 import { invalidate, useQuery } from "@/data/query";
-import { getDevices, getShareQuality, joinVoice, leaveVoice, remoteCamera, remoteScreen, setDevices, setPeerVolume, setShareQuality, startCamera, switchCamera, startScreenShare, stopCamera, stopScreenShare, toggleDeafen, toggleMute, useVoice } from "@/data/voice";
+import { getDevices, getShareAudio, getShareQuality, setShareAudio, joinVoice, leaveVoice, remoteCamera, remoteScreen, setDevices, setPeerVolume, setShareQuality, startCamera, switchCamera, startScreenShare, stopCamera, stopScreenShare, toggleDeafen, toggleMute, useVoice } from "@/data/voice";
 import { Avatar, Button, cn, Empty, ErrorNote, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
 
@@ -287,6 +287,7 @@ function DockButton({ label, onClick, danger = false, active = false, children }
 
 function ScreenPicker({ onClose }: { onClose: () => void }) {
   const [sources, setSources] = useState<{ id: string; name: string; thumbnail: string; display: boolean }[] | null>(null);
+  const [withAudio, setWithAudio] = useState(getShareAudio());
   const voice = useVoice();
   useEffect(() => {
     void bridge.system.screenSources().then(setSources);
@@ -298,6 +299,13 @@ function ScreenPicker({ onClose }: { onClose: () => void }) {
           <h3 className="text-[18px] font-semibold text-ink">{voice.sharing ? "Paylaşılan ekranı değiştir" : "Neyi paylaşmak istersin?"}</h3>
           <button onClick={onClose} className="rounded-full p-1.5 text-ink-3 hover:bg-white/10"><X className="size-4" /></button>
         </div>
+        <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-[16px] bg-white/[0.06] px-4 py-3">
+          <input type="checkbox" checked={withAudio} onChange={(event) => setWithAudio(event.target.checked)} className="size-4 accent-[var(--color-accent,#ff8a2b)]" />
+          <span className="flex-1">
+            <span className="block text-[13.5px] font-medium text-ink">Bilgisayar sesini de paylaş</span>
+            <span className="block text-[12px] text-ink-3">Oyun, video ve müzik sesi karşı tarafa gider. Ekipteki konuşmalar geri gitmez.</span>
+          </span>
+        </label>
         {!sources ? (
           <Skeleton className="h-48 rounded-[18px]" />
         ) : (
@@ -307,7 +315,8 @@ function ScreenPicker({ onClose }: { onClose: () => void }) {
                 key={source.id}
                 onClick={() => {
                   onClose();
-                  void startScreenShare(source.id);
+                  setShareAudio(withAudio);
+                  void startScreenShare(source.id, withAudio);
                 }}
                 className="group rounded-[16px] p-2 text-left transition hover:bg-white/[0.08]"
               >
