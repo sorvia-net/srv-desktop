@@ -55,7 +55,6 @@ const SCREENS: Partial<Record<ModuleId, ComponentType>> = {
 function AppWindow({ id, active }: { id: ModuleId; active: boolean }) {
   const os = useOs();
   const Screen = SCREENS[id];
-  const web = id.startsWith("app-");
   const origin = os.origin ? `${os.origin.x - 12}px ${os.origin.y - 44}px` : "50% 60%";
   return (
     <motion.section
@@ -66,15 +65,9 @@ function AppWindow({ id, active }: { id: ModuleId; active: boolean }) {
       transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.9 }}
       style={{ transformOrigin: origin, pointerEvents: active ? "auto" : "none", zIndex: active ? 20 : 10 }}
     >
-      {web ? (
-        <div className="h-full pb-7">
-          <WebApp id={id} />
-        </div>
-      ) : (
-        <div className="h-full px-9 pb-10 pt-7">
-          <AppNav id={id}>{Screen ? <Screen /> : null}</AppNav>
-        </div>
-      )}
+      <div className="h-full px-9 pb-10 pt-7">
+        <AppNav id={id}>{Screen ? <Screen /> : null}</AppNav>
+      </div>
       <button onClick={os.goHome} title="Ana ekran (Ctrl+H)" aria-label="Ana ekran" className="group absolute bottom-1.5 left-1/2 z-10 flex h-5 w-56 -translate-x-1/2 items-center justify-center">
         <span className="h-[5px] w-[134px] rounded-full bg-white/45 transition-all group-hover:w-[160px] group-hover:bg-white/80" />
       </button>
@@ -122,13 +115,45 @@ function DockPeek() {
   );
 }
 
+function WebAppLayer() {
+  const os = useOs();
+  const { installed } = useModules();
+  const ids = [...new Set([...[...installed].filter((id) => id.startsWith("app-")), ...os.openApps.filter((id) => id.startsWith("app-"))])].filter((id) => itemById(id));
+  return (
+    <>
+      {ids.map((id) => {
+        const active = os.active === id;
+        return (
+          <motion.section
+            key={id}
+            aria-hidden={!active}
+            className="glass-panel absolute inset-x-3 bottom-3 top-0 overflow-hidden rounded-[30px]"
+            initial={false}
+            animate={active ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 320, damping: 34 }}
+            style={{ pointerEvents: active ? "auto" : "none", zIndex: active ? 20 : 1, visibility: active ? "visible" : "hidden" }}
+          >
+            <div className="h-full pb-7">
+              <WebApp id={id} />
+            </div>
+            <button onClick={os.goHome} title="Ana ekran (Ctrl+H)" aria-label="Ana ekran" className="group absolute bottom-1.5 left-1/2 z-10 flex h-5 w-56 -translate-x-1/2 items-center justify-center">
+              <span className="h-[5px] w-[134px] rounded-full bg-white/45 transition-all group-hover:w-[160px] group-hover:bg-white/80" />
+            </button>
+          </motion.section>
+        );
+      })}
+    </>
+  );
+}
+
 export function AppHost() {
   const os = useOs();
   return (
     <div className="absolute inset-0" style={{ pointerEvents: os.active ? "auto" : "none" }}>
-      {os.openApps.map((id) => (
+      {os.openApps.filter((id) => !id.startsWith("app-")).map((id) => (
         <AppWindow key={id} id={id} active={os.active === id} />
       ))}
+      <WebAppLayer />
       <DockPeek />
     </div>
   );

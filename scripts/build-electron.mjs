@@ -2,7 +2,7 @@ import { build } from "esbuild";
 
 const watch = process.argv.includes("--watch");
 const options = {
-  entryPoints: { main: "electron/main.ts", preload: "electron/preload.ts" },
+  entryPoints: { main: "electron/main.ts", preload: "electron/preload.ts", "webapp-preload": "electron/webapp-preload.ts" },
   outdir: "dist-electron",
   outExtension: { ".js": ".cjs" },
   bundle: true,

@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 
 import type { DesktopUser, HomeLayout, ModuleId, StoreModule } from "@shared/contracts";
 import { bridge } from "@/data/bridge";
+import { siDiscord, siSpotify, siTelegram, siWhatsapp, siYoutubemusic } from "simple-icons";
 
 export type ModuleDef = {
   id: string;
@@ -16,6 +17,7 @@ export type ModuleDef = {
   description: string;
   category: string;
   icon: LucideIcon;
+  brand?: { path: string; fg: string; bg: string; scale?: number };
   tile: string;
   url?: string;
   system?: boolean;
@@ -137,16 +139,16 @@ const LINK_LIST: LinkDef[] = [
   link("link-dev", "sorvia.dev", "Geliştirici dokümanları", Code2, "linear-gradient(160deg,#a78bfa 0%,#7c3aed 55%,#4c1d95 100%)", "https://sorvia.dev", "folder-links"),
   link("link-store", "Sorvia Store", "Giyim mağazası", Store, "linear-gradient(160deg,#f9a8d4 0%,#ec4899 55%,#be185d 100%)", "https://sorvia.store", "folder-links"),
   link("link-cc", "Command Center", "Altyapı paneli", Cpu, "linear-gradient(160deg,#5eead4 0%,#14b8a6 55%,#0f766e 100%)", "https://tr-sorvia-panelorg.sorvia.net", "folder-links", { role: "ADMIN" }),
-  appWindow("app-spotify", "Spotify", "Müzik ve podcast", Music, "linear-gradient(160deg,#4ade80 0%,#1db954 55%,#0f6e31 100%)", "https://open.spotify.com"),
-  appWindow("app-whatsapp", "WhatsApp", "Mesajlaşma", MessageCircle, "linear-gradient(160deg,#86efac 0%,#25d366 55%,#128c7e 100%)", "https://web.whatsapp.com"),
-  appWindow("app-discord", "Discord", "Sunucular ve sohbet", Headphones, "linear-gradient(160deg,#a5b4fc 0%,#5865f2 55%,#3c45a5 100%)", "https://discord.com/app"),
-  appWindow("app-ytmusic", "YouTube Music", "Müzik", Disc3, "linear-gradient(160deg,#fca5a5 0%,#ff0033 55%,#991b1b 100%)", "https://music.youtube.com"),
-  appWindow("app-telegram", "Telegram", "Mesajlaşma", Send, "linear-gradient(160deg,#7dd3fc 0%,#229ed9 55%,#0f6b99 100%)", "https://web.telegram.org/a/"),
+  appWindow("app-spotify", "Spotify", "Müzik ve podcast", Music, "#121212", "https://open.spotify.com", { path: siSpotify.path, fg: "#1ed760", bg: "#121212" }),
+  appWindow("app-whatsapp", "WhatsApp", "Mesajlaşma", MessageCircle, "#25d366", "https://web.whatsapp.com", { path: siWhatsapp.path, fg: "#ffffff", bg: "linear-gradient(180deg,#5ff07f 0%,#25d366 55%,#1cb956 100%)" }),
+  appWindow("app-discord", "Discord", "Sunucular ve sohbet", Headphones, "#5865f2", "https://discord.com/app", { path: siDiscord.path, fg: "#ffffff", bg: "#5865f2", scale: 0.56 }),
+  appWindow("app-ytmusic", "YouTube Music", "Müzik", Disc3, "#000000", "https://music.youtube.com", { path: siYoutubemusic.path, fg: "#ff0000", bg: "#000000", scale: 0.66 }),
+  appWindow("app-telegram", "Telegram", "Mesajlaşma", Send, "#ffffff", "https://web.telegram.org/a/", { path: siTelegram.path, fg: "#26a5e4", bg: "#ffffff", scale: 0.7 }),
   link("link-ai", "Yapay zekâ", "9Router ağ geçidi", Sparkles, "linear-gradient(160deg,#93c5fd 0%,#8b5cf6 50%,#db2777 100%)", "https://ai.sorvia.dev", "folder-links", { role: "ADMIN" }),
 ];
 
-function appWindow(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string): LinkDef {
-  return { kind: "link", id, title, subtitle, description: `${subtitle}. Sorvia'nın içinde kendi uygulaması olarak açılır; oturumun bu bilgisayarda hatırlanır.`, category: "Eğlence", icon, tile, url, window: true, features: ["Uygulama içinde çalışır", "Oturum hatırlanır", "Uygulama değiştiricide görünür"], version: "web", size: "—" };
+function appWindow(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string, brand: ModuleDef["brand"]): LinkDef {
+  return { kind: "link", id, title, subtitle, brand, description: `${subtitle}. Sorvia'nın içinde kendi uygulaması olarak açılır; oturumun bu bilgisayarda hatırlanır.`, category: "Eğlence", icon, tile, url, window: true, features: ["Uygulama içinde çalışır", "Oturum hatırlanır", "Uygulama değiştiricide görünür"], version: "web", size: "—" };
 }
 
 function link(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string, folder: string, extra: { permission?: string; role?: "ADMIN" | "OWNER" } = {}): LinkDef {
@@ -248,7 +250,7 @@ export function resolveLayout(saved: HomeLayout | null, user: DesktopUser, insta
 }
 
 export function itemBadge(item: HomeItem, badges: Partial<Record<string, number>>, user: DesktopUser, installed: Set<string>): number {
-  if (item.kind === "app") return badges[item.id] ?? 0;
+  if (item.kind === "app" || (item.kind === "link" && item.window)) return badges[item.id] ?? 0;
   if (item.kind === "folder") return folderItems(item, user, installed).reduce((sum, child) => sum + itemBadge(child, badges, user, installed), 0);
   return 0;
 }

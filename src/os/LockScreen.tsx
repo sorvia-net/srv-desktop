@@ -1,14 +1,21 @@
 import { ArrowRight, Lock, ScanFace } from "lucide-react";
 import { AnimatePresence, motion, useAnimationControls } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import type { AppNotification } from "@shared/contracts";
 
 import { api } from "@/data/api";
 import { helloAvailable } from "@/data/hello";
 import { bridge } from "@/data/bridge";
+import { useFeed } from "@/data/feed";
+import { relative } from "@/data/format";
+import { useQuery } from "@/data/query";
 import { Avatar, Spinner } from "@/design/ui";
 import { Background } from "@/shell/Background";
 import { useSession } from "@/shell/context";
 
+import { Tile } from "./icons";
+import { appById, itemById } from "./registry";
 import { useOs } from "./state";
 import { useNow } from "./StatusBar";
 
@@ -103,6 +110,8 @@ export function LockScreen() {
             <p className="tabular -mt-1 text-[min(14vw,150px)] font-semibold leading-none tracking-[-0.04em] text-white/95 [text-shadow:0_10px_40px_rgba(0,0,0,0.3)]">{TIME.format(now)}</p>
           </div>
 
+          <LockNotifications />
+
           <div className="absolute bottom-[10vh] z-10 flex flex-col items-center">
             <Avatar name={session.user.name} src={session.user.avatarUrl} size={72} ring />
             <p className="mt-3 text-[16px] font-semibold [text-shadow:0_1px_6px_rgba(0,0,0,0.5)]">{session.user.name}</p>
@@ -149,5 +158,44 @@ export function LockScreen() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function LockNotifications() {
+  const feed = useFeed();
+  const notes = useQuery<AppNotification[]>("notifications", () => api.notifications(), { refreshMs: 60_000 });
+  const items = useMemo(() => {
+    const since = Date.now() - 24 * 60 * 60_000;
+    const web = feed.filter((item) => new Date(item.at).getTime() > since).map((item) => ({ key: item.id, app: item.app, title: item.title, body: item.body, at: item.at }));
+    const server = (notes.data ?? []).filter((item) => !item.readAt).map((item) => ({ key: item.id, app: "home", title: item.title, body: item.body ?? "", at: item.createdAt }));
+    return [...web, ...server].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
+  }, [feed, notes.data]);
+  if (!items.length) return null;
+  return (
+    <div className="relative mt-8 flex w-[min(420px,90vw)] flex-col gap-2">
+      {items.map((item, index) => {
+        const source = item.app.startsWith("app-") ? itemById(item.app) : null;
+        const tile = source && source.kind !== "folder" ? source : { ...appById("home"), title: "Sorvia" };
+        return (
+          <motion.div
+            key={item.key}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="flex items-start gap-3 rounded-[22px] bg-white/[0.18] px-4 py-3 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.5)] ring-1 ring-white/20 backdrop-blur-2xl"
+          >
+            <Tile item={tile} size={34} className="shadow-none" />
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-2 text-[12px] text-white/75">
+                <span className="truncate font-semibold uppercase tracking-wide">{tile.title}</span>
+                <span className="ml-auto shrink-0">{relative(item.at)}</span>
+              </p>
+              <p className="truncate text-[13.5px] font-semibold text-white">{item.title}</p>
+              {item.body && <p className="line-clamp-2 text-[12.5px] text-white/85">{item.body}</p>}
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
   );
 }

@@ -130,6 +130,15 @@ function hardenGuest(contents: WebContents) {
   });
 }
 
+function isAppHost(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && APP_WINDOW_HOSTS.includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function harden(contents: WebContents) {
   if (contents.getType() === "webview" || contents.session !== session.defaultSession) return hardenGuest(contents);
   contents.on("will-navigate", (event, url) => {
@@ -144,6 +153,7 @@ function harden(contents: WebContents) {
   contents.on("will-attach-webview", (event, preferences, params) => {
     if (!webAllowed(params.src ?? "")) return event.preventDefault();
     delete preferences.preload;
+    if (isAppHost(params.src ?? "")) preferences.preload = join(__dirname, "webapp-preload.cjs");
     preferences.nodeIntegration = false;
     preferences.contextIsolation = true;
     preferences.sandbox = true;

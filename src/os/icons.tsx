@@ -61,12 +61,20 @@ function FolderGlyph({ size }: { size: number }) {
 export function Tile({ item, size, className }: { item: AppDef | LinkDef; size: number; className?: string }) {
   const Icon = item.icon;
   const light = item.tile.startsWith("#f");
-  const style: CSSProperties = { width: size, height: size, borderRadius: radius(size), background: item.tile };
+  const style: CSSProperties = { width: size, height: size, borderRadius: radius(size), background: item.brand?.bg ?? item.tile };
   let glyph = <Icon style={{ width: size * 0.5, height: size * 0.5 }} strokeWidth={1.9} className={light ? "text-[#1c1c1e]" : "text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]"} />;
   if (item.id === "calendar") glyph = <CalendarGlyph size={size} />;
   else if (item.id === "gallery") glyph = <FlowerGlyph size={size} />;
   else if (item.id === "storage") glyph = <FolderGlyph size={size} />;
   else if (item.id === "link-site") glyph = <LogoMark size={size * 0.62} />;
+  if (item.brand) {
+    const scale = item.brand.scale ?? 0.6;
+    glyph = (
+      <svg viewBox="0 0 24 24" width={size * scale} height={size * scale} aria-hidden>
+        <path d={item.brand.path} fill={item.brand.fg} />
+      </svg>
+    );
+  }
   return (
     <span
       className={cn("relative flex shrink-0 items-center justify-center overflow-hidden shadow-[0_10px_24px_-10px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.35)]", className)}
@@ -74,7 +82,7 @@ export function Tile({ item, size, className }: { item: AppDef | LinkDef; size: 
     >
       <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22),transparent_45%)]" />
       {glyph}
-      {item.kind === "link" && size >= 40 && <span className="absolute bottom-[6%] right-[6%] size-[14%] rounded-full bg-white/85 shadow-[0_0_0_1.5px_rgba(0,0,0,0.12)]" />}
+      {item.kind === "link" && !item.brand && size >= 40 && <span className="absolute bottom-[6%] right-[6%] size-[14%] rounded-full bg-white/85 shadow-[0_0_0_1.5px_rgba(0,0,0,0.12)]" />}
     </span>
   );
 }

@@ -2,32 +2,61 @@ import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react";
 import { createElement, useEffect, useRef, useState } from "react";
 
 import { bridge } from "@/data/bridge";
+import { pushFeed, setWebBadge } from "@/data/feed";
+import { playSound } from "@/data/sound";
 import { IconButton } from "@/design/ui";
 import { itemById, type LinkDef } from "@/os/registry";
+import { useOs } from "@/os/state";
+import { useSession } from "@/shell/context";
 
 type WebviewTag = HTMLElement & { goBack(): void; goForward(): void; reload(): void; canGoBack(): boolean; canGoForward(): boolean; getURL(): string };
+type NotifyEvent = Event & { channel: string; args: [{ title: string; body: string }] };
 
 export function WebApp({ id }: { id: string }) {
   const item = itemById(id) as LinkDef | undefined;
   const ref = useRef<WebviewTag | null>(null);
   const [nav, setNav] = useState({ back: false, forward: false, loading: true });
+  const session = useSession();
+  const os = useOs();
+  const latest = useRef({ session, os });
+  latest.current = { session, os };
 
   useEffect(() => {
     const view = ref.current;
-    if (!view) return;
+    if (!view || !item) return;
     const update = () => setNav({ back: view.canGoBack(), forward: view.canGoForward(), loading: false });
     const start = () => setNav((current) => ({ ...current, loading: true }));
+    const onMessage = (event: Event) => {
+      const message = event as NotifyEvent;
+      if (message.channel !== "notify") return;
+      const payload = message.args[0];
+      if (!payload?.title) return;
+      const { session: current, os: system } = latest.current;
+      pushFeed({ app: item.id, title: payload.title, body: payload.body });
+      if (current.prefs.doNotDisturb) return;
+      playSound(current.prefs.notificationSound);
+      if (system.active !== item.id || !document.hasFocus()) current.toast(`${item.title} · ${payload.title}${payload.body ? `: ${payload.body}` : ""}`.slice(0, 160), "info");
+    };
+    const onTitle = (event: Event) => {
+      const title = (event as Event & { title: string }).title ?? "";
+      const match = /^\((\d+)\)/.exec(title);
+      setWebBadge(item.id, match ? Number(match[1]) : 0);
+    };
     view.addEventListener("did-navigate", update);
     view.addEventListener("did-navigate-in-page", update);
     view.addEventListener("did-stop-loading", update);
     view.addEventListener("did-start-loading", start);
+    view.addEventListener("ipc-message", onMessage);
+    view.addEventListener("page-title-updated", onTitle);
     return () => {
       view.removeEventListener("did-navigate", update);
       view.removeEventListener("did-navigate-in-page", update);
       view.removeEventListener("did-stop-loading", update);
       view.removeEventListener("did-start-loading", start);
+      view.removeEventListener("ipc-message", onMessage);
+      view.removeEventListener("page-title-updated", onTitle);
     };
-  }, []);
+  }, [item]);
 
   if (!item) return null;
   return (

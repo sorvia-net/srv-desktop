@@ -23,6 +23,7 @@ import { Connect } from "@/screens/Connect";
 import { Background } from "@/shell/Background";
 import { OverlayProvider, SessionProvider, useOverlay, useSession } from "@/shell/context";
 import { CommandPalette, NotificationCenter, PreviewBanner, QuickTask, Toasts } from "@/shell/overlays";
+import { useWebBadges } from "@/data/feed";
 
 async function nextMailAccount(session: { toast: (message: string, tone?: "ok" | "bad" | "info") => void }) {
   const accounts = await bridge.mail.accounts();
@@ -137,14 +138,16 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
   const unread = (notes.data ?? []).filter((item) => !item.readAt).length;
   const mailUnread = installed.has("mail") && account.data ? (folders.data?.find((item) => item.role === "INBOX")?.unread ?? 0) : 0;
   const counts = home.data?.counts;
+  const webBadges = useWebBadges();
   const badges = useMemo<Partial<Record<string, number>>>(
     () => ({
       tasks: counts ? counts.overdueTasks + counts.dueToday : 0,
       tickets: counts?.waitingTickets ?? 0,
       chat: (channels.data ?? []).reduce((sum, item) => sum + item.unread, 0),
       mail: mailUnread,
+      ...webBadges,
     }),
-    [counts, channels.data, mailUnread],
+    [counts, channels.data, mailUnread, webBadges],
   );
 
   useEffect(() => {
