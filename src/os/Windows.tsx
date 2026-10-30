@@ -19,6 +19,7 @@ import { Founder } from "@/screens/Founder";
 import { Games } from "@/screens/Games";
 import { Orders } from "@/screens/Orders";
 import { Products } from "@/screens/Products";
+import { WebApp } from "@/screens/WebApp";
 import { Status } from "@/screens/Status";
 import { Tickets } from "@/screens/Tickets";
 import { Users } from "@/screens/Users";
@@ -30,7 +31,7 @@ import { appById, itemById, resolveLayout } from "./registry";
 import { useModules } from "./modules";
 import { AppNav, useOs } from "./state";
 
-const SCREENS: Record<ModuleId, ComponentType> = {
+const SCREENS: Partial<Record<ModuleId, ComponentType>> = {
   home: Home,
   tasks: Tasks,
   calendar: Calendar,
@@ -54,6 +55,7 @@ const SCREENS: Record<ModuleId, ComponentType> = {
 function AppWindow({ id, active }: { id: ModuleId; active: boolean }) {
   const os = useOs();
   const Screen = SCREENS[id];
+  const web = id.startsWith("app-");
   const origin = os.origin ? `${os.origin.x - 12}px ${os.origin.y - 44}px` : "50% 60%";
   return (
     <motion.section
@@ -64,11 +66,15 @@ function AppWindow({ id, active }: { id: ModuleId; active: boolean }) {
       transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.9 }}
       style={{ transformOrigin: origin, pointerEvents: active ? "auto" : "none", zIndex: active ? 20 : 10 }}
     >
-      <div className="h-full px-9 pb-10 pt-7">
-        <AppNav id={id}>
-          <Screen />
-        </AppNav>
-      </div>
+      {web ? (
+        <div className="h-full pb-7">
+          <WebApp id={id} />
+        </div>
+      ) : (
+        <div className="h-full px-9 pb-10 pt-7">
+          <AppNav id={id}>{Screen ? <Screen /> : null}</AppNav>
+        </div>
+      )}
       <button onClick={os.goHome} title="Ana ekran (Ctrl+H)" aria-label="Ana ekran" className="group absolute bottom-1.5 left-1/2 z-10 flex h-5 w-56 -translate-x-1/2 items-center justify-center">
         <span className="h-[5px] w-[134px] rounded-full bg-white/45 transition-all group-hover:w-[160px] group-hover:bg-white/80" />
       </button>

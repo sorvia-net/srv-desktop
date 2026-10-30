@@ -1,7 +1,7 @@
 import type { Accent, Density, IconSize, NotificationSound, ToastPosition, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "games";
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "games" | `app-${string}`;
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 

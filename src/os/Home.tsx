@@ -141,7 +141,7 @@ function HomeIcon({ item, size, label, drag, setDrag, onDropOn, area }: { item: 
     if (item.kind === "app") os.openApp(item.id, undefined, ref.current?.getBoundingClientRect());
     else if (item.kind === "folder") os.openFolder(item.id);
     else {
-      launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }, ref.current?.getBoundingClientRect()));
+      launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }, ref.current?.getBoundingClientRect()), (id) => os.openApp(id, undefined, ref.current?.getBoundingClientRect()));
     }
   };
 

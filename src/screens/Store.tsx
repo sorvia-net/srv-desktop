@@ -131,7 +131,7 @@ function Action({ item, compact = false }: { item: Item; compact?: boolean }) {
         size="sm"
         onClick={() => {
           if (item.kind === "app") os.openApp(item.id);
-          else launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }));
+          else launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }), (id) => os.openApp(id));
         }}
       >
         Aç

@@ -573,8 +573,17 @@ function hardenSession() {
     callback({ video: chosen });
   });
   const web = session.fromPartition("persist:sorvia-web");
-  web.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === "fullscreen" || permission === "clipboard-sanitized-write"));
-  web.setPermissionCheckHandler((_contents, permission) => permission === "fullscreen" || permission === "clipboard-sanitized-write");
+  web.setUserAgent(web.getUserAgent().replace(/\s(Electron|sorvia-desktop|Sorvia[\w-]*)\/\S+/gi, ""));
+  const appHost = (url: string) => {
+    try {
+      return APP_WINDOW_HOSTS.includes(new URL(url).hostname);
+    } catch {
+      return false;
+    }
+  };
+  const webAllow = (permission: string, url: string) => permission === "fullscreen" || permission === "clipboard-sanitized-write" || (appHost(url) && (permission === "notifications" || permission === "media" || permission === "clipboard-read"));
+  web.setPermissionRequestHandler((contents, permission, callback, details) => callback(webAllow(permission, details.requestingUrl ?? contents.getURL())));
+  web.setPermissionCheckHandler((_contents, permission, origin) => webAllow(permission, `${origin}/`));
   ses.setDevicePermissionHandler(() => false);
   ses.on("will-download", (event) => event.preventDefault());
 }

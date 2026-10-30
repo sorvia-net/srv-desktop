@@ -146,7 +146,7 @@ const LINK_LIST: LinkDef[] = [
 ];
 
 function appWindow(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string): LinkDef {
-  return { kind: "link", id, title, subtitle, description: `${subtitle}. Kendi penceresinde, uygulama gibi açılır; hesabın bu bilgisayarda hatırlanır.`, category: "Eğlence", icon, tile, url, window: true, features: ["Ayrı pencere", "Oturum hatırlanır", "Görev çubuğunda kendi simgesi"], version: "web", size: "—" };
+  return { kind: "link", id, title, subtitle, description: `${subtitle}. Sorvia'nın içinde kendi uygulaması olarak açılır; oturumun bu bilgisayarda hatırlanır.`, category: "Eğlence", icon, tile, url, window: true, features: ["Uygulama içinde çalışır", "Oturum hatırlanır", "Uygulama değiştiricide görünür"], version: "web", size: "—" };
 }
 
 function link(id: string, title: string, subtitle: string, icon: LucideIcon, tile: string, url: string, folder: string, extra: { permission?: string; role?: "ADMIN" | "OWNER" } = {}): LinkDef {
@@ -197,7 +197,11 @@ const WEB_APP: AppDef = {
   description: "Sekmeli, adres çubuklu tarayıcı. Sorvia sayfaları ve diğer siteler uygulamanın içinde açılır.", features: ["Sekmeler (Ctrl+T / Ctrl+W)", "Adres ve arama çubuğu", "Oturumlar hatırlanır"],
 };
 
-export function appById(id: ModuleId) {
+export function appById(id: ModuleId): AppDef {
+  if (id.startsWith("app-")) {
+    const link = LINK_LIST.find((item) => item.id === id);
+    if (link) return { ...link, kind: "app", id } as AppDef;
+  }
   return APP_LIST.find((item) => item.id === id) ?? WEB_APP;
 }
 
@@ -249,7 +253,8 @@ export function itemBadge(item: HomeItem, badges: Partial<Record<string, number>
   return 0;
 }
 
-export function launchLink(item: LinkDef, open: (url: string) => void) {
-  if (item.window) void bridge.system.openAppWindow(item.url, item.id).then((done) => done || open(item.url));
+export function launchLink(item: LinkDef, open: (url: string) => void, openApp?: (id: ModuleId) => void) {
+  if (item.window && openApp) openApp(item.id as ModuleId);
+  else if (item.window) void bridge.system.openAppWindow(item.url, item.id).then((done) => done || open(item.url));
   else open(item.url);
 }

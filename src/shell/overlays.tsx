@@ -65,7 +65,7 @@ export function CommandPalette() {
         title: item.title,
         hint: item.subtitle,
         icon: <Tile item={item} size={22} className="shadow-none" />,
-        run: done(() => (item.kind === "app" ? os.openApp(item.id) : launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) })))),
+        run: done(() => (item.kind === "app" ? os.openApp(item.id) : launchLink(item, (url) => os.openApp("web", { link: item.id, url, title: item.title, at: String(Date.now()) }), (id) => os.openApp(id)))),
       }));
     const store = catalog
       .filter((item) => !installed.has(item.id) && available(item, session.user))
