@@ -74,6 +74,7 @@ const bridge: SorviaBridge = {
     markUnlocked: () => ipcRenderer.invoke("system:markUnlocked"),
     screens: () => ipcRenderer.invoke("system:screens"),
     shareLock: (locked) => ipcRenderer.send("system:lockState", locked),
+    lockNow: () => ipcRenderer.invoke("system:lockNow"),
     reportOpenApps: (list) => ipcRenderer.send("system:openApps", list),
     shareState: (kind, payload) => ipcRenderer.send("system:shareState", kind, payload),
     onSharedState: (listener) => listen("system:sharedState", listener),

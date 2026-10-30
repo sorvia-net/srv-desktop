@@ -175,6 +175,13 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
   const [update, setUpdate] = useState<string | null>(null);
   useEffect(() => {
     if (session.preview) return;
+    if (SECONDARY_SCREEN) {
+      void bridge.system.lockNow().then((locked) => {
+        if (locked) latest.current.os.lock();
+        else if (locked === false) latest.current.os.unlock();
+      });
+      return;
+    }
     void bridge.system.unlockedVersion().then((version) => {
       if (version !== bridge.version) latest.current.os.lock();
     });

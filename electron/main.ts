@@ -54,6 +54,7 @@ app.enableSandbox();
 let win: BrowserWindow | null = null;
 const extras = new Map<number, BrowserWindow>();
 const openByWindow = new Map<number, string[]>();
+let sharedLocked: boolean | null = null;
 let tray: Tray | null = null;
 let quitting = false;
 let announcedUpdate: string | null = null;
@@ -624,8 +625,10 @@ function registerIpc() {
     if (!trusted(event) || typeof kind !== "string" || kind.length > 40) return;
     for (const target of [win, ...extras.values()]) if (target && !target.isDestroyed() && target.webContents !== event.sender) target.webContents.send("system:sharedState", { kind, payload });
   });
+  ipcMain.handle("system:lockNow", (event) => (trusted(event) ? sharedLocked : null));
   ipcMain.on("system:lockState", (event, locked) => {
     if (!trusted(event) || typeof locked !== "boolean") return;
+    sharedLocked = locked;
     for (const target of [win, ...extras.values()]) if (target && !target.isDestroyed() && target.webContents !== event.sender) target.webContents.send("system:lockState", locked);
   });
   handle("system:screens", () => {
