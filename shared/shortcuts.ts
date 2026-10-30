@@ -5,6 +5,7 @@ export const SHORTCUT_ACTIONS = [
   { id: "control", label: "Kontrol merkezi", fallback: "Ctrl+J" },
   { id: "settings", label: "Ayarlar", fallback: "Ctrl+," },
   { id: "home", label: "Ana ekran", fallback: "Ctrl+H" },
+  { id: "closeApp", label: "Açık uygulamayı kapat", fallback: "Ctrl+Shift+W" },
   { id: "switcher", label: "Uygulama değiştirici", fallback: "Ctrl+Tab" },
   { id: "lock", label: "Ekranı kilitle", fallback: "Ctrl+L" },
   { id: "refresh", label: "Yenile", fallback: "F5" },

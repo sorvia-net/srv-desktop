@@ -123,6 +123,11 @@ export function StatusBar({ unread }: { unread: number }) {
             <Tile item={app} size={20} className="shadow-none" />
             {app.title}
           </button>
+        ) : null}
+        {app ? (
+          <button onClick={() => os.closeApp(app.id)} title="Uygulamayı kapat (Ctrl+Shift+W)" aria-label={`${app.title} kapat`} className="flex size-6 items-center justify-center rounded-full text-ink-3 hover:bg-white/10 hover:text-ink">
+            <X className="size-3.5" />
+          </button>
         ) : (
           <span className="flex items-center gap-2 pl-1 text-[13px] font-semibold">
             <LogoMark size={20} /> Sorvia

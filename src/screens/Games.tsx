@@ -1,11 +1,12 @@
 import { ArrowLeft, Bomb, Crown, Flag, Gamepad2, Grid2x2, RotateCcw, Spade, Trophy, Worm } from "lucide-react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import type { GameId, Leaderboard } from "@shared/contracts";
 import { gamesApi } from "@/data/api";
 import { invalidate, setQueryData, useQuery } from "@/data/query";
-import { Avatar, Button, cn, Segmented } from "@/design/ui";
+import { Avatar, Button, cn } from "@/design/ui";
 import { useSession } from "@/shell/context";
 
 const GAMES: { id: GameId; title: string; subtitle: string; icon: ReactNode; tile: string; unit: (score: number) => string }[] = [
@@ -251,17 +252,69 @@ function deal(): Klondike {
   return { stock: cards, waste: [], foundations: [[], [], [], []], tableau };
 }
 
-function PlayingCard({ card, selected = false, onClick, onDoubleClick, small = false }: { card: Card | null; selected?: boolean; onClick?: () => void; onDoubleClick?: () => void; small?: boolean }) {
-  if (!card) return <button onClick={onClick} className="h-[96px] w-[68px] rounded-[10px] border-2 border-dashed border-white/15" />;
-  if (!card.up) return <button onClick={onClick} className="h-[96px] w-[68px] rounded-[10px] border border-white/20 bg-[repeating-linear-gradient(45deg,#2563eb_0_6px,#1d4ed8_6px_12px)]" />;
+const PIPS: Record<number, [number, number][]> = {
+  2: [[50, 14], [50, 86]],
+  3: [[50, 14], [50, 50], [50, 86]],
+  4: [[28, 14], [72, 14], [28, 86], [72, 86]],
+  5: [[28, 14], [72, 14], [50, 50], [28, 86], [72, 86]],
+  6: [[28, 14], [72, 14], [28, 50], [72, 50], [28, 86], [72, 86]],
+  7: [[28, 14], [72, 14], [50, 32], [28, 50], [72, 50], [28, 86], [72, 86]],
+  8: [[28, 14], [72, 14], [50, 32], [28, 50], [72, 50], [50, 68], [28, 86], [72, 86]],
+  9: [[28, 14], [72, 14], [28, 38], [72, 38], [50, 50], [28, 62], [72, 62], [28, 86], [72, 86]],
+  10: [[28, 14], [72, 14], [50, 26], [28, 38], [72, 38], [28, 62], [72, 62], [50, 74], [28, 86], [72, 86]],
+};
+const FACE: Record<number, string> = { 11: "♞", 12: "♛", 13: "♚" };
+const CW = 84;
+const CH = 118;
+
+function CardBack() {
+  return (
+    <span className="absolute inset-0 rounded-[9px] bg-white p-[5px] shadow-[0_1px_2px_rgba(0,0,0,0.4),0_4px_10px_rgba(0,0,0,0.25)]">
+      <span className="block h-full w-full rounded-[5px] bg-[#9f1d2b] bg-[repeating-linear-gradient(45deg,rgba(255,255,255,0.13)_0_2px,transparent_2px_7px),repeating-linear-gradient(-45deg,rgba(255,255,255,0.13)_0_2px,transparent_2px_7px)] ring-1 ring-inset ring-white/40" />
+    </span>
+  );
+}
+
+function CardFace({ card }: { card: Card }) {
+  const color = red(card) ? "#c8102e" : "#141414";
+  const suit = SUITS[card.suit];
+  const corner = (
+    <span className="flex w-[14px] flex-col items-center leading-none" style={{ color }}>
+      <span className="text-[15px] font-bold tracking-[-0.06em]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>{RANKS[card.rank]}</span>
+      <span className="text-[12px]">{suit}</span>
+    </span>
+  );
+  return (
+    <span className="absolute inset-0 rounded-[9px] bg-[linear-gradient(160deg,#ffffff,#f3f1ea)] shadow-[0_1px_2px_rgba(0,0,0,0.4),0_4px_10px_rgba(0,0,0,0.25)] ring-1 ring-black/15">
+      <span className="absolute left-[4px] top-[5px]">{corner}</span>
+      <span className="absolute bottom-[5px] right-[4px] rotate-180">{corner}</span>
+      <span className="absolute inset-x-[18px] inset-y-[14px]" style={{ color }}>
+        {card.rank === 1 ? (
+          <span className="absolute inset-0 flex items-center justify-center text-[44px] leading-none">{suit}</span>
+        ) : card.rank > 10 ? (
+          <span className="absolute inset-0 flex flex-col items-center justify-center rounded-[4px] border border-current/40 bg-[linear-gradient(180deg,rgba(234,179,8,0.18),rgba(234,179,8,0.05))]" style={{ borderColor: color }}>
+            <span className="text-[30px] leading-none">{FACE[card.rank]}</span>
+            <span className="mt-0.5 text-[15px] font-bold" style={{ fontFamily: "Georgia, serif" }}>{RANKS[card.rank]}{suit}</span>
+          </span>
+        ) : (
+          PIPS[card.rank]!.map(([x, y], index) => (
+            <span key={index} className={cn("absolute -translate-x-1/2 -translate-y-1/2 text-[15px] leading-none", y > 50 && "rotate-180")} style={{ left: `${x}%`, top: `${y}%` }}>{suit}</span>
+          ))
+        )}
+      </span>
+    </span>
+  );
+}
+
+function PlayingCard({ card, selected = false, onClick, onDoubleClick, slot }: { card: Card | null; selected?: boolean; onClick?: () => void; onDoubleClick?: () => void; slot?: string }) {
   return (
     <button
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      className={cn("flex h-[96px] w-[68px] flex-col justify-between rounded-[10px] bg-white p-1.5 text-left shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 transition", selected ? "ring-accent -translate-y-1" : "ring-transparent", red(card) ? "text-[#dc2626]" : "text-[#111]", small && "h-[96px]")}
+      style={{ width: CW, height: CH }}
+      className={cn("relative block shrink-0 rounded-[9px] transition-transform", selected && "-translate-y-1.5 ring-[3px] ring-[#facc15]", !card && "border-2 border-white/25 bg-black/10")}
     >
-      <span className="text-[14px] font-bold leading-none">{RANKS[card.rank]}{SUITS[card.suit]}</span>
-      <span className="self-center text-[26px] leading-none">{SUITS[card.suit]}</span>
+      {!card ? <span className="absolute inset-0 flex items-center justify-center text-[30px] text-white/25">{slot ?? ""}</span> : card.up ? <CardFace card={card} /> : <CardBack />}
     </button>
   );
 }
@@ -365,32 +418,32 @@ function Solitaire() {
   const isPicked = (choice: Pick) => JSON.stringify(choice) === JSON.stringify(pick);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between rounded-[16px] bg-white/[0.06] px-4 py-2 text-[14px] text-ink">
+    <div className="flex flex-col gap-5 rounded-[26px] bg-[radial-gradient(ellipse_at_50%_20%,#1f7a46,#0d4a29_70%,#08341c)] p-6 shadow-[inset_0_0_80px_rgba(0,0,0,0.45)] ring-[6px] ring-[#4a2c17]">
+      <div className="flex items-center justify-between text-[13.5px] text-white/85">
         <span>{won ? "Tebrikler, kazandın!" : "Tıkla seç, hedefe tıkla bırak · çift tıkla yukarı gönder"}</span>
         <span className="tabular-nums">{seconds} sn</span>
       </div>
       <div className="flex gap-3">
-        <PlayingCard card={game.stock.length ? { ...game.stock.at(-1)!, up: false } : null} onClick={draw} />
+        <PlayingCard card={game.stock.length ? { ...game.stock.at(-1)!, up: false } : null} slot="↻" onClick={draw} />
         <PlayingCard card={game.waste.at(-1) ?? null} selected={isPicked({ from: "waste" })} onClick={() => game.waste.length && setPick(isPicked({ from: "waste" }) ? null : { from: "waste" })} onDoubleClick={() => autoFoundation({ from: "waste" })} />
-        <span className="w-[68px]" />
+        <span style={{ width: CW }} />
         {game.foundations.map((pile, index) => (
-          <PlayingCard key={index} card={pile.at(-1) ?? null} onClick={() => (pick ? tryMove(pick, { to: "foundation", pile: index }) : pile.length && setPick({ from: "foundation", pile: index }))} />
+          <PlayingCard key={index} card={pile.at(-1) ?? null} slot={SUITS[index]} onClick={() => (pick ? tryMove(pick, { to: "foundation", pile: index }) : pile.length && setPick({ from: "foundation", pile: index }))} />
         ))}
       </div>
       <div className="flex gap-3">
         {game.tableau.map((pile, pileIndex) => (
-          <div key={pileIndex} className="relative w-[68px]" style={{ height: `${96 + Math.max(0, pile.length - 1) * 22}px` }}>
+          <div key={pileIndex} className="relative" style={{ width: CW, height: CH + pile.slice(0, -1).reduce((sum, card) => sum + (card.up ? 26 : 12), 0) }}>
             {pile.length === 0 && <PlayingCard card={null} onClick={() => pick && tryMove(pick, { to: "tableau", pile: pileIndex })} />}
             {pile.map((card, index) => (
-              <div key={index} className="absolute left-0" style={{ top: index * 22 }}>
+              <div key={index} className="absolute left-0" style={{ top: pile.slice(0, index).reduce((sum, item) => sum + (item.up ? 26 : 12), 0) }}>
                 <PlayingCard card={card} selected={pick?.from === "tableau" && pick.pile === pileIndex && index >= pick.index} onClick={() => clickTableau(pileIndex, index)} onDoubleClick={() => index === pile.length - 1 && autoFoundation({ from: "tableau", pile: pileIndex, index })} />
               </div>
             ))}
           </div>
         ))}
       </div>
-      <Button onClick={reset} className="self-start"><RotateCcw className="size-4" /> Yeni oyun</Button>
+      <Button onClick={reset} className="self-start bg-black/30 text-white hover:bg-black/45"><RotateCcw className="size-4" /> Yeni oyun</Button>
     </div>
   );
 }
@@ -507,7 +560,8 @@ function Blackjack() {
   };
 
   return (
-    <div className="flex w-full max-w-[640px] flex-col gap-4 rounded-[28px] bg-[radial-gradient(ellipse_at_top,#166534,#052e16)] p-6 ring-1 ring-white/10">
+    <div className="relative flex w-full max-w-[720px] flex-col gap-4 overflow-hidden rounded-b-[40%_22%] rounded-t-[28px] bg-[radial-gradient(ellipse_at_50%_0%,#1f7a46,#0d4a29_65%,#08341c)] p-7 pb-16 shadow-[inset_0_0_90px_rgba(0,0,0,0.5)] ring-[10px] ring-[#4a2c17]">
+      <span className="pointer-events-none absolute inset-x-0 bottom-5 text-center text-[12px] font-semibold uppercase tracking-[0.35em] text-[#facc15]/60">Blackjack 3'e 2 öder · Krupiye 17'de durur</span>
       <div className="flex items-center justify-between text-[14px] text-white">
         <span className="font-semibold">Kasa: {chips} fiş</span>
         <span className="text-white/70">{message}</span>
@@ -517,7 +571,11 @@ function Blackjack() {
       <div className="flex flex-wrap items-center gap-2">
         {phase !== "play" ? (
           <>
-            <Segmented size="sm" value={String(bet)} onChange={(value) => setBet(Number(value))} options={[10, 50, 100, 250, 500].map((value) => ({ value: String(value), label: String(value) }))} />
+            <span className="flex gap-1.5 pl-6">
+              {[10, 50, 100, 250, 500].map((value, index) => (
+                <button key={value} onClick={() => setBet(value)} className={cn("flex size-11 items-center justify-center rounded-full border-[3px] border-dashed text-[12px] font-bold text-white shadow-[0_3px_0_rgba(0,0,0,0.4)] transition", bet === value ? "-translate-y-1 border-white" : "border-white/60")} style={{ background: ["#2563eb", "#dc2626", "#16a34a", "#111827", "#7c3aed"][index] }}>{value}</button>
+              ))}
+            </span>
             <Button variant="accent" disabled={bet > chips || chips <= 0} onClick={start}>Dağıt</Button>
             <Button variant="ghost" className="text-white" onClick={cashOut}>Masadan kalk ve skoru kaydet</Button>
             {chips <= 0 && <span className="text-[12.5px] text-white/80">Fişin bitti; masadan kalkınca yeniden 1000 ile başlarsın.</span>}
@@ -538,8 +596,12 @@ function Hand({ title, cards }: { title: string; cards: Card[] }) {
   return (
     <div>
       <p className="mb-2 text-[12.5px] text-white/70">{title}</p>
-      <div className="flex min-h-[96px] gap-2">
-        {cards.map((card, index) => <PlayingCard key={index} card={card} />)}
+      <div className="flex gap-2" style={{ minHeight: CH }}>
+        {cards.map((card, index) => (
+          <motion.span key={index} initial={{ y: -40, opacity: 0, rotate: -6 }} animate={{ y: 0, opacity: 1, rotate: 0 }} transition={{ duration: 0.25 }}>
+            <PlayingCard card={card} />
+          </motion.span>
+        ))}
       </div>
     </div>
   );
@@ -606,19 +668,48 @@ function Snake() {
     setRunning(false);
   };
 
-  const body = useMemo(() => new Set(snake), [snake]);
+  const order = useMemo(() => new Map(snake.map((cell, index) => [cell, index])), [snake]);
+  const eyes = direction.current === 1 ? "flex-col items-end pr-[3px]" : direction.current === -1 ? "flex-col items-start pl-[3px]" : direction.current < 0 ? "items-start pt-[3px]" : "items-end pb-[3px]";
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="flex w-full items-center justify-between rounded-[16px] bg-white/[0.06] px-4 py-2 text-[14px] text-ink">
-        <span>Puan: {score}</span>
+        <span>🍎 {score}</span>
         <span className="text-ink-3">{dead ? "Oyun bitti" : running ? "Ok tuşlarıyla yönet" : "Başlamak için bir ok tuşuna bas"}</span>
       </div>
-      <div className="grid gap-[1px] rounded-[14px] bg-black/40 p-2" style={{ gridTemplateColumns: `repeat(${SNAKE_SIZE}, 22px)` }}>
-        {Array.from({ length: SNAKE_SIZE * SNAKE_SIZE }, (_, index) => (
-          <span key={index} className={cn("size-[22px] rounded-[5px]", index === snake[0] ? "bg-[#a3e635]" : body.has(index) ? "bg-[#65a30d]" : index === food ? "bg-bad" : "bg-white/[0.03]")} />
-        ))}
+      <div className="relative rounded-[16px] bg-[#578a34] p-3 shadow-[inset_0_0_0_4px_#3e6b22,0_10px_30px_rgba(0,0,0,0.4)]">
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${SNAKE_SIZE}, 22px)` }}>
+          {Array.from({ length: SNAKE_SIZE * SNAKE_SIZE }, (_, index) => {
+            const part = order.get(index);
+            const tile = (Math.floor(index / SNAKE_SIZE) + index) % 2 ? "#a2d149" : "#aad751";
+            return (
+              <span key={index} className="relative flex size-[22px] items-center justify-center" style={{ background: tile }}>
+                {part !== undefined ? (
+                  <span
+                    className={cn("absolute flex gap-[3px]", part === 0 ? cn("inset-0 rounded-[7px]", eyes) : "inset-[1px] rounded-[6px]")}
+                    style={{ background: `hsl(222, 80%, ${Math.min(62, 45 + part * 0.8)}%)` }}
+                  >
+                    {part === 0 && (
+                      <>
+                        <span className="size-[6px] rounded-full bg-white ring-[1.5px] ring-black/70" />
+                        <span className="size-[6px] rounded-full bg-white ring-[1.5px] ring-black/70" />
+                      </>
+                    )}
+                  </span>
+                ) : index === food ? (
+                  <span className="text-[17px] leading-none drop-shadow">🍎</span>
+                ) : null}
+              </span>
+            );
+          })}
+        </div>
+        {dead && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[16px] bg-black/45 text-white">
+            <p className="text-[22px] font-bold">Oyun bitti · {score}</p>
+            <Button variant="accent" onClick={reset}><RotateCcw className="size-4" /> Yeniden başla</Button>
+          </div>
+        )}
       </div>
-      <Button onClick={reset}><RotateCcw className="size-4" /> Yeniden başla</Button>
+      {!dead && <Button onClick={reset}><RotateCcw className="size-4" /> Yeniden başla</Button>}
     </div>
   );
 }
@@ -695,10 +786,21 @@ function Game2048() {
         <span>Skor: {score}</span>
         <span className="text-ink-3">{over ? "Hamle kalmadı" : "Ok tuşlarıyla kaydır"}</span>
       </div>
-      <div className="grid grid-cols-4 gap-2 rounded-[18px] bg-[#bbada0]/30 p-3">
+      <div className="grid grid-cols-4 gap-3 rounded-[14px] bg-[#bbada0] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
         {grid.map((value, index) => (
-          <span key={index} className="flex size-[84px] items-center justify-center rounded-[12px] text-[26px] font-bold" style={{ background: value ? (COLORS[value] ?? "#3c3a32") : "rgba(255,255,255,0.06)", color: value > 4 ? "#f9f6f2" : "#776e65" }}>
-            {value || ""}
+          <span key={index} className="relative size-[92px] rounded-[8px] bg-[#cdc1b4]">
+            {value > 0 && (
+              <motion.span
+                key={`${index}-${value}`}
+                initial={{ scale: 0.6 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 22 }}
+                className="absolute inset-0 flex items-center justify-center rounded-[8px] font-extrabold"
+                style={{ background: COLORS[value] ?? "#3c3a32", color: value > 4 ? "#f9f6f2" : "#776e65", fontSize: value >= 1024 ? 30 : value >= 128 ? 36 : 44, boxShadow: value >= 128 ? `0 0 24px ${COLORS[value] ?? "#3c3a32"}88` : undefined }}
+              >
+                {value}
+              </motion.span>
+            )}
           </span>
         ))}
       </div>

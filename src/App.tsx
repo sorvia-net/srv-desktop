@@ -217,6 +217,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
       else if (action === "control") run(() => system.setControl(!system.control));
       else if (action === "settings") run(() => system.openApp("settings"));
       else if (action === "home") run(() => { layer.close(); system.goHome(); });
+      else if (action === "closeApp" && system.active) run(() => { layer.close(); system.closeApp(system.active!); })
       else if (action === "switcher") run(() => system.setSwitcher(!system.switcher));
       else if (action === "lock") run(() => system.lock());
       else if (action === "refresh") run(() => invalidate(""));
