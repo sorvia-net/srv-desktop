@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 
 import type { Preferences } from "../shared/contracts";
 import { request } from "./api";
-import { auth } from "./auth";
+import { auth, setLinkOpener } from "./auth";
 import { badgeImage } from "./badge";
 import { APP_ORIGIN, DEV_URL, IS_DEV, SERVER, userAgent } from "./config";
 import { mail } from "./mail";
@@ -130,7 +130,7 @@ function hardenGuest(contents: WebContents) {
 }
 
 function harden(contents: WebContents) {
-  if (contents.getType() === "webview") return hardenGuest(contents);
+  if (contents.getType() === "webview" || contents.session !== session.defaultSession) return hardenGuest(contents);
   contents.on("will-navigate", (event, url) => {
     if (!isAppUrl(url)) event.preventDefault();
   });
@@ -150,9 +150,16 @@ function harden(contents: WebContents) {
     preferences.partition = "persist:sorvia-web";
   });
   contents.setWindowOpenHandler(({ url }) => {
-    openSafe(url);
+    openInside(url);
     return { action: "deny" };
   });
+}
+
+function openInside(url: unknown) {
+  if (typeof url !== "string") return;
+  if (!webAllowed(url) || !win || win.isDestroyed()) return openSafe(url);
+  showWindow();
+  send("system:openWeb", url);
 }
 
 function createWindow() {
@@ -464,7 +471,8 @@ function registerIpc() {
   handle("prefs:get", () => store.prefs());
   handle("prefs:set", (patch) => applyPrefs(store.setPrefs(patch)));
 
-  handle("system:openExternal", (url) => openSafe(url));
+  handle("system:openExternal", (url) => openInside(url));
+  handle("system:openBrowser", (url) => openSafe(url));
   handle("system:checkUpdate", () => checkUpdate());
   handle("system:pickWallpaper", () => pickWallpaper());
   handle("system:wallpaperImage", () => wallpaperImage());
@@ -570,6 +578,31 @@ if (!app.requestSingleInstanceLock()) {
       if (win && !win.isFocused()) win.flashFrame(true);
     });
 
+    let linkWindow: BrowserWindow | null = null;
+    setLinkOpener((url) => {
+      if (linkWindow && !linkWindow.isDestroyed()) {
+        void linkWindow.loadURL(url);
+        return linkWindow.focus();
+      }
+      linkWindow = new BrowserWindow({
+        width: 520,
+        height: 720,
+        parent: win ?? undefined,
+        title: "Sorvia Desktop'u bağla",
+        autoHideMenuBar: true,
+        backgroundColor: "#0d0a09",
+        icon: image("icon.png"),
+        webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: "persist:sorvia-web" },
+      });
+      linkWindow.setMenu(null);
+      void linkWindow.loadURL(url);
+      linkWindow.on("closed", () => {
+        linkWindow = null;
+      });
+    });
+    auth.onSignedIn(() => {
+      if (linkWindow && !linkWindow.isDestroyed()) linkWindow.close();
+    });
     auth.restore();
     if (!startHidden && !(await updater.startup(asset("icon.png")))) return;
     updater.onStatus((status) => send("system:updateStatus", status));

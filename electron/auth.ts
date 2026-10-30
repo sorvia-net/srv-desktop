@@ -1,4 +1,10 @@
 import { shell } from "electron";
+
+let linkOpener: (url: string) => void = (url) => void shell.openExternal(url);
+
+export function setLinkOpener(opener: (url: string) => void) {
+  linkOpener = opener;
+}
 import { EventEmitter } from "node:events";
 import { hostname } from "node:os";
 
@@ -117,7 +123,7 @@ export const auth = {
     const expiresIn = Math.min(1800, Math.max(60, Number(data.expiresIn) || 600));
     pending = { deviceCode: data.deviceCode, interval: Math.max(2, Number(data.interval) || 3) * 1000, expiresAt: Date.now() + expiresIn * 1000 };
     set({ status: "linking", server: SERVER, userCode: data.userCode, verificationUrl: data.verificationUrlComplete, expiresAt: new Date(pending.expiresAt).toISOString() });
-    if (!(IS_DEV && process.env.SORVIA_E2E === "1")) void shell.openExternal(data.verificationUrlComplete);
+    if (!(IS_DEV && process.env.SORVIA_E2E === "1")) linkOpener(data.verificationUrlComplete);
     schedule();
     return state;
   },

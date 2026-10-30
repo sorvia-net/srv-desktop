@@ -358,6 +358,8 @@ export type SorviaBridge = {
   };
   system: {
     openExternal(url: string): Promise<void>;
+    openBrowser(url: string): Promise<void>;
+    onOpenWeb(listener: (url: string) => void): () => void;
     notify(title: string, body: string): void;
     onCommand(listener: (command: string) => void): () => void;
     setBadge(count: number): void;

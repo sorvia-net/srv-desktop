@@ -244,7 +244,7 @@ function WebPane({ tab, active }: { tab: Tab; active: boolean }) {
             className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-4"
           />
         </form>
-        <IconButton label="Varsayılan tarayıcıda aç" size={32} disabled={start} onClick={() => void bridge.system.openExternal(address)}><ExternalLink className="size-4" /></IconButton>
+        <IconButton label="Varsayılan tarayıcıda aç" size={32} disabled={start} onClick={() => void bridge.system.openBrowser(address)}><ExternalLink className="size-4" /></IconButton>
       </div>
       {loading && <div className="h-0.5 w-full animate-pulse bg-accent" />}
       {start ? <StartPage onOpen={go} /> : createElement("webview", { ref, src: tab.url, partition: "persist:sorvia-web", allowpopups: "true", className: "min-h-0 flex-1 bg-white", style: { display: "flex" } })}

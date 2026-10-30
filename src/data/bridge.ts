@@ -35,7 +35,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.5.1",
+    version: "0.5.2",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -97,6 +97,10 @@ function webBridge(): SorviaBridge {
       onChange: () => () => undefined,
     },
     system: {
+      openBrowser: async (url) => {
+        window.open(url, "_blank", "noopener");
+      },
+      onOpenWeb: () => () => undefined,
       openExternal: async (url) => {
         window.open(url, "_blank", "noopener");
       },

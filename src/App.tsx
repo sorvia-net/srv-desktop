@@ -176,6 +176,20 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     });
   }, [session.preview]);
   useEffect(() => bridge.system.onUpdateReady(setUpdate), []);
+  useEffect(
+    () =>
+      bridge.system.onOpenWeb((url) => {
+        let title = url;
+        try {
+          title = new URL(url).hostname.replace(/^www\./, "");
+        } catch {
+          return;
+        }
+        latest.current.overlay.close();
+        latest.current.os.openApp("web", { link: `url:${url}`, url, title, at: String(Date.now()) });
+      }),
+    [],
+  );
 
   const latest = useRef({ os, overlay, session, installed });
   latest.current = { os, overlay, session, installed };
