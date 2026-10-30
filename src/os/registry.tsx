@@ -1,4 +1,5 @@
 import {
+  Gamepad2,
   Activity, BookOpen, Bot, CalendarDays, ChartColumn, Code2, Cpu, CreditCard, Crown, FileText, FolderOpen, Globe, Images, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, Megaphone, MessagesSquare, Package, Server, Settings, Shield,
   ShoppingBag, ShoppingCart, Sparkles, Store, Ticket, UserRound, Users, Wrench,
 } from "lucide-react";
@@ -99,6 +100,26 @@ const APP_LIST: AppDef[] = [
     features: ["Anlık durum", "30 günlük geçmiş", "Açık olaylar"], screenshots: ["store/status.jpg"],
   },
   {
+    kind: "app", id: "admin", title: "Yönetim", subtitle: "Anlık özet", category: "Yönetim", icon: LayoutDashboard, tile: "linear-gradient(160deg,#c4b5fd 0%,#8b5cf6 55%,#6d28d9 100%)", folder: "folder-admin", permission: "dashboard.view", version: "1.0", size: "0,4 MB",
+    description: "Sipariş, ciro, destek, kullanıcı ve hata sayılarını tek ekranda gör; karta tıklayınca ilgili uygulama açılır.",
+    features: ["Son 30 gün ciro", "Bekleyen işler", "14 günlük satış grafiği"],
+  },
+  {
+    kind: "app", id: "products", title: "Ürünler", subtitle: "Katalog ve satışlar", category: "Yönetim", icon: Package, tile: "linear-gradient(160deg,#fdba74 0%,#f97316 55%,#c2410c 100%)", folder: "folder-admin", permission: "catalog.view", version: "1.0", size: "0,5 MB",
+    description: "Ürünlerin satışlarını, lisanslarını ve sürümlerini gör; fiyatı değiştir, yayınla ya da gizle.",
+    features: ["30 günlük satış", "Fiyat ve yayın durumu", "Sürümler ve yorumlar"],
+  },
+  {
+    kind: "app", id: "founder", title: "Kurucu paneli", subtitle: "Finans ve vergi", category: "Yönetim", icon: Crown, tile: "linear-gradient(160deg,#fde68a 0%,#f59e0b 55%,#b45309 100%)", folder: "folder-admin", role: "OWNER", version: "1.0", size: "0,5 MB",
+    description: "Gelir, gider, KDV ve kurumlar vergisi tahmini, yaklaşan ödemeler, açık faturalar ve evraklar.",
+    features: ["Aylık ve yıllık finans", "Vergi takvimi", "Ödemeler ve evraklar"],
+  },
+  {
+    kind: "app", id: "games", title: "Oyunlar", subtitle: "Ekiple yarış", category: "Eğlence", icon: Gamepad2, tile: "linear-gradient(160deg,#f0abfc 0%,#c026d3 55%,#86198f 100%)", version: "1.0", size: "1,1 MB",
+    description: "Mayın Tarlası, Solitaire, Blackjack, Yılan ve 2048. En iyi skorlar ekip sıralamasına girer.",
+    features: ["5 oyun", "Ekip sıralaması", "Skorlar sunucuda saklanır"],
+  },
+  {
     kind: "app", id: "store", title: "Mağaza", subtitle: "Modülleri keşfet", category: "Sistem", icon: ShoppingBag, tile: "linear-gradient(160deg,#7cc7ff 0%,#2f80ed 55%,#1c4fd1 100%)", system: true, version: "1.0", size: "0,5 MB",
     description: "Sorvia modüllerini yükle, kaldır ve güncelle.",
     features: [],
@@ -112,10 +133,6 @@ const APP_LIST: AppDef[] = [
 
 const LINK_LIST: LinkDef[] = [
   link("link-site", "Sorvia.net", "Ana site", Globe, "linear-gradient(160deg,#3a2c22 0%,#1d1612 100%)", SITE, "folder-links"),
-  link("link-panel", "Panelim", "Müşteri paneli görünümü", UserRound, "linear-gradient(160deg,#a5b4fc 0%,#6366f1 55%,#4338ca 100%)", `${SITE}/panel`, "folder-links"),
-  link("link-admin", "Yönetim", "Yönetim paneli", LayoutDashboard, "linear-gradient(160deg,#c4b5fd 0%,#8b5cf6 55%,#6d28d9 100%)", `${SITE}/admin`, "folder-admin", { permission: "dashboard.view" }),
-  link("link-products", "Ürünler", "Katalog ve sürümler", Package, "linear-gradient(160deg,#fdba74 0%,#f97316 55%,#c2410c 100%)", `${SITE}/admin/urunler`, "folder-admin", { permission: "catalog.view" }),
-  link("link-owners", "Kurucu paneli", "Finans, depo, evraklar", Crown, "linear-gradient(160deg,#fde68a 0%,#f59e0b 55%,#b45309 100%)", `${SITE}/owners`, "folder-admin", { role: "OWNER" }),
   link("link-dev", "sorvia.dev", "Geliştirici dokümanları", Code2, "linear-gradient(160deg,#a78bfa 0%,#7c3aed 55%,#4c1d95 100%)", "https://sorvia.dev", "folder-links"),
   link("link-store", "Sorvia Store", "Giyim mağazası", Store, "linear-gradient(160deg,#f9a8d4 0%,#ec4899 55%,#be185d 100%)", "https://sorvia.store", "folder-links"),
   link("link-cc", "Command Center", "Altyapı paneli", Cpu, "linear-gradient(160deg,#5eead4 0%,#14b8a6 55%,#0f766e 100%)", "https://tr-sorvia-panelorg.sorvia.net", "folder-links", { role: "ADMIN" }),
@@ -155,7 +172,7 @@ export function catalog(): (AppDef | LinkDef)[] {
 }
 
 export const DEFAULT_LAYOUT: HomeLayout = {
-  grid: ["home", "tasks", "calendar", "tickets", "mail", "chat", "folder-admin", "folder-links", "store", "settings"],
+  grid: ["home", "tasks", "calendar", "tickets", "mail", "chat", "folder-admin", "games", "store", "settings"],
   dock: ["home", "tasks", "tickets", "mail", "chat"],
 };
 
@@ -206,7 +223,7 @@ export function folderItems(folder: FolderDef, user: DesktopUser, installed: Set
 export function resolveLayout(saved: HomeLayout | null, user: DesktopUser, installed: Set<string>) {
   const fits = (id: string) => {
     const item = itemById(id);
-    return Boolean(item && visible(item, user, installed) && !(item.kind !== "folder" && item.folder));
+    return Boolean(item && id !== "folder-links" && visible(item, user, installed) && !(item.kind !== "folder" && item.folder));
   };
   const unique = (ids: string[]) => ids.filter((id, index) => ids.indexOf(id) === index);
   const grid = unique(saved?.grid?.length ? saved.grid : DEFAULT_LAYOUT.grid).filter(fits);

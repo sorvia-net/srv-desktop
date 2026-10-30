@@ -1,7 +1,7 @@
 import type { Accent, Density, IconSize, NotificationSound, ToastPosition, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status";
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "games";
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
@@ -94,9 +94,9 @@ export type AppNotification = {
 };
 
 export type VoicePeer = { id: string; userId: string; name: string; avatarUrl: string | null; muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; joinedAt: string };
-export type ChatChannel = { id: string; slug: string; name: string; topic: string | null; isPrivate: boolean; unread: number; lastMessageAt: string | null; kind?: "text" | "voice"; limit?: number | null; minRole?: Role; peers?: VoicePeer[] };
+export type ChatChannel = { id: string; slug: string; name: string; topic: string | null; isPrivate: boolean; unread: number; lastMessageAt: string | null; avatarUrl?: string | null; userId?: string | null; kind?: "text" | "voice" | "dm"; limit?: number | null; minRole?: Role; peers?: VoicePeer[] };
 export type VoiceJoin = { peerId: string; channel: { id: string; name: string }; peers: VoicePeer[]; iceServers: RTCIceServer[] };
-export type VoiceSync = { peers: VoicePeer[]; signals: { from: string; kind: "offer" | "answer" | "candidate" | "bye"; payload: unknown }[] };
+export type VoiceSync = { peers: VoicePeer[]; signals: { from: string; kind: "offer" | "answer" | "candidate" | "bye" | "streams"; payload: unknown }[] };
 
 export type AdminUserRow = { id: string; name: string; email: string; avatarUrl: string | null; role: Role | "CUSTOMER"; roleLabel: string; status: string; createdAt: string; lastLoginAt: string | null; orders: number };
 export type AdminUserPage = { total: number; nextCursor: string | null; items: AdminUserRow[]; canEdit: boolean; canRoles: boolean };
@@ -402,3 +402,31 @@ export type SorviaBridge = {
     clearCache(): Promise<number>;
   };
 };
+
+export type ChatPerson = { id: string; name: string; avatarUrl: string | null; role: Role; online: boolean; inVoice: boolean };
+export type ProductRow = { id: string; slug: string; name: string; tagline: string | null; type: string; status: string; price: number; salePrice: number | null; currency: string; isFree: boolean; image: string | null; downloads: number; rating: number | null; featured: boolean; licenses: number; versions: number; sold30: number; updatedAt: string };
+export type ProductPage = { canEdit: boolean; items: ProductRow[] };
+export type ProductDetail = Omit<ProductRow, "licenses" | "versions" | "sold30" | "rating" | "updatedAt"> & {
+  summary: string | null; views: number; bestSeller: boolean; isNew: boolean; licenseCode: string | null; createdAt: string; publishedAt: string | null;
+  versions: { id: string; version: string; channel: string; isLatest: boolean; downloads: number; releasedAt: string }[];
+  reviews: { id: string; rating: number; body: string | null; author: string; createdAt: string }[];
+  counts: { licenses: number; orderItems: number; wishlisted: number };
+  canEdit: boolean;
+};
+export type AdminOverview = {
+  ordersToday: number; revenue: { currency: string; total: number; count: number }[]; awaiting: number; claims: number; openTickets: number; waitingTickets: number;
+  newUsersWeek: number; users: number; errors24: number; contacts: number; meetings: number; applications: number; licenses: number; salesChart: { day: string; count: number }[];
+};
+export type FounderOverview = {
+  month: { income: number; expense: number; vatOut: number; vatIn: number; missingRate: number };
+  year: { income: number; expense: number; vatOut: number; vatIn: number; missingRate: number };
+  sales: { count: number; totalTry: number };
+  taxEstimate: { vatPayable: number; corporate: number; rate: number };
+  due: { id: string; name: string; amount: number; currency: string; nextDueAt: string }[];
+  invoices: { id: string; title: string; vendor: string | null; dueAt: string | null; total: number | null; currency: string; paymentState: string }[];
+  documents: { id: string; title: string; kind: string; vendor: string | null; total: number | null; currency: string; createdAt: string }[];
+  notes: { id: string; title: string; category: string | null }[];
+  calendar: { title: string; date: string; detail: string }[];
+};
+export type GameId = "solitaire" | "minesweeper" | "blackjack" | "snake" | "game2048";
+export type Leaderboard = { game: GameId; title: string; lowerIsBetter: boolean; board: { userId: string; name: string; avatarUrl: string | null; best: number; plays: number; me: boolean; rank: number }[]; recent: { score: number; createdAt: string; name: string }[] };

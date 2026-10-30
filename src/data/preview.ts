@@ -1,4 +1,5 @@
 import type {
+  AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, ProductRow,
   AdminOrderDetail, AdminOrderPage, AdminOrderRow, AdminUserDetail, AdminUserPage, AdminUserRow, StatusBoard,
   DriveFile, DriveFolder, DriveView, MediaItem, MediaPage, StorageOverview, StoreCatalog,
   AppNotification, CalendarEvent, ChatChannel, ChatMessage, DesktopUser, HomeSummary, MailFolder, MailMessage, MailSummary, Person, Task, TicketDetail, TicketSummary,
@@ -36,7 +37,7 @@ export const previewUser: DesktopUser = {
   roleLabel: "Destek",
   title: "Müşteri Destek Uzmanı",
   permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view", "media.view", "media.upload", "media.delete", "users.view", "orders.view"],
-  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status"],
+  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status", "products", "admin", "founder", "games"],
   timeZone: "Europe/Istanbul",
   memberSince: at(-410, 9),
 };
@@ -288,6 +289,39 @@ const previewOrders: AdminOrderRow[] = Array.from({ length: 18 }, (_, index) => 
   paidAt: ["PAID", "FULFILLED", "REFUNDED"].includes(ORDER_STATUS[index % ORDER_STATUS.length]!) ? at(-index, 9 + (index % 10)) : null,
 }));
 
+
+const PRODUCT_NAMES = ["SrvReward — Günlük Ödül", "SrvPawnshop", "RxyOptimizer", "SrvLicense Core", "Uber Taksi (FiveM)", "Discord Destek Botu", "SrvQuests", "SrvAuction"];
+const previewProducts: ProductRow[] = PRODUCT_NAMES.map((name, index) => ({
+  id: `p${index + 1}`,
+  slug: `urun-${index + 1}`,
+  name,
+  tagline: ["Oyuncuları her gün geri getir", "Rehin dükkânı sistemi", "Sunucu performans paketi", "Lisans altyapısı", "Taksi işi", "Destek botu", "Görev sistemi", "Açık artırma"][index]!,
+  type: index === 4 ? "FIVEM_SCRIPT" : index === 5 ? "DISCORD_BOT" : "MINECRAFT_PLUGIN",
+  status: index === 6 ? "DRAFT" : "PUBLISHED",
+  price: [14.99, 24.99, 39, 0, 29.9, 19, 17.5, 12][index]!,
+  salePrice: index === 1 ? 19.99 : null,
+  currency: "EUR",
+  isFree: index === 3,
+  image: null,
+  downloads: 1200 - index * 110,
+  rating: index === 3 ? null : 4.2 + (index % 4) / 10,
+  featured: index < 2,
+  licenses: 320 - index * 30,
+  versions: 3 + (index % 4),
+  sold30: 40 - index * 4,
+  updatedAt: at(-index, 12),
+}));
+
+const PEOPLE: ChatPerson[] = [
+  { id: "u-ece", name: "Ece Yıldız", avatarUrl: null, role: "SUPPORT", online: true, inVoice: false },
+  { id: "u-baris", name: "Barış Aydın", avatarUrl: null, role: "MODERATOR", online: true, inVoice: true },
+  { id: "u-mert", name: "Mert Kaya", avatarUrl: null, role: "DEVELOPER", online: false, inVoice: false },
+  { id: "u-selin", name: "Selin Acar", avatarUrl: null, role: "ADMIN", online: false, inVoice: false },
+];
+
+const BOARD_NAMES = ["Barış Aydın", "Ece Yıldız", "Deniz Arslan", "Mert Kaya", "Selin Acar"];
+const scores: Record<string, number[]> = {};
+
 export const preview = {
   home(): HomeSummary {
     const open = tasks.filter((item) => item.status !== "done");
@@ -513,5 +547,67 @@ export const preview = {
       days: Array.from({ length: 30 }, (_, day) => ({ date: at(day - 29, 0).slice(0, 10), total: 288, up: day === 20 && index === 3 ? 270 : 288, slow: day % 9 === 0 ? 4 : 0 })),
     }));
     return { generatedAt: new Date().toISOString(), windowDays: 30, stale: false, overall: { status: "DEGRADED", down: [], degraded: 1, total: services.length }, services, incidents: [{ id: "i1", title: "Ödeme sağlayıcısında yavaşlık", severity: "MINOR", status: "monitoring", serviceName: "Ödeme altyapısı", startedAt: at(0, 9), resolvedAt: null }] } satisfies StatusBoard;
+  },
+  products() {
+    return { canEdit: false, items: previewProducts } satisfies ProductPage;
+  },
+  product(id: string) {
+    const row = previewProducts.find((item) => item.id === id);
+    if (!row) return null;
+    return {
+      ...row,
+      summary: "Önizleme ürünü.",
+      views: 5400,
+      bestSeller: row.featured,
+      isNew: false,
+      licenseCode: `SRV-${row.id.toUpperCase()}`,
+      createdAt: at(-200, 10),
+      publishedAt: at(-190, 10),
+      versions: [{ id: "v1", version: "1.4", channel: "stable", isLatest: true, downloads: 410, releasedAt: at(-6, 12) }, { id: "v0", version: "1.3", channel: "stable", isLatest: false, downloads: 780, releasedAt: at(-40, 12) }],
+      reviews: [{ id: "r1", rating: 5, body: "Kurulumu çok kolay, destek hızlı.", author: "Kuzey Yazılım", createdAt: at(-3, 9) }],
+      counts: { licenses: row.licenses, orderItems: row.licenses + 12, wishlisted: 31 },
+      canEdit: false,
+    } satisfies ProductDetail;
+  },
+  overview() {
+    return {
+      ordersToday: 7, revenue: [{ currency: "EUR", total: 1849.6, count: 23 }, { currency: "TRY", total: 12450, count: 9 }], awaiting: 3, claims: 1, openTickets: 9, waitingTickets: 4,
+      newUsersWeek: 38, users: 1820, errors24: 2, contacts: 5, meetings: 2, applications: 6, licenses: 2410,
+      salesChart: Array.from({ length: 14 }, (_, index) => ({ day: at(index - 13, 0).slice(0, 10), count: [3, 5, 2, 7, 4, 6, 8, 3, 5, 9, 6, 4, 7, 5][index]! })),
+    } satisfies AdminOverview;
+  },
+  founder() {
+    return {
+      month: { income: 182400, expense: 64300, vatOut: 30400, vatIn: 9800, missingRate: 0 },
+      year: { income: 1640000, expense: 702000, vatOut: 273000, vatIn: 107000, missingRate: 0 },
+      sales: { count: 41, totalTry: 96400 },
+      taxEstimate: { vatPayable: 20600, corporate: 193000, rate: 25 },
+      due: [{ id: "d1", name: "Sunucu kirası", amount: 4200, currency: "TRY", nextDueAt: at(3, 9) }, { id: "d2", name: "Muhasebe", amount: 3500, currency: "TRY", nextDueAt: at(8, 9) }],
+      invoices: [{ id: "i1", title: "Hetzner faturası", vendor: "Hetzner", dueAt: at(5, 9), total: 79, currency: "EUR", paymentState: "UNPAID" }],
+      documents: [{ id: "doc1", title: "Ekim kira faturası", kind: "INVOICE_IN", vendor: "Plaza AŞ", total: 4200, currency: "TRY", createdAt: at(-2, 10) }],
+      notes: [{ id: "n1", title: "Banka hesapları", category: "Finans" }],
+      calendar: [{ title: "KDV beyannamesi", date: at(26, 0), detail: "Ekim dönemi" }],
+    } satisfies FounderOverview;
+  },
+  board(game: GameId, score?: number) {
+    if (score !== undefined) (scores[game] ??= []).push(score);
+    const lower = game === "minesweeper" || game === "solitaire";
+    const base = BOARD_NAMES.map((name, index) => ({ userId: `b${index}`, name, avatarUrl: null, best: lower ? 60 + index * 23 : 2400 - index * 310, plays: 4 + index, me: name === "Deniz Arslan", rank: 0 }));
+    const mine = scores[game] ?? [];
+    if (mine.length) {
+      const best = lower ? Math.min(...mine) : Math.max(...mine);
+      const me = base.find((row) => row.me)!;
+      me.best = lower ? Math.min(me.best, best) : Math.max(me.best, best);
+    }
+    const board = base.sort((a, b) => (lower ? a.best - b.best : b.best - a.best)).map((row, index) => ({ ...row, rank: index + 1 }));
+    return { game, title: game, lowerIsBetter: lower, board, recent: [] } satisfies Leaderboard;
+  },
+  people() {
+    return PEOPLE;
+  },
+  openDirect(userId: string) {
+    const person = PEOPLE.find((item) => item.id === userId);
+    if (!channels.some((item) => item.id === `dm-${userId}`)) channels.push({ id: `dm-${userId}`, slug: `dm-${userId}`, name: person?.name ?? "Kişi", topic: null, isPrivate: true, unread: 0, lastMessageAt: null, kind: "dm", avatarUrl: null, userId });
+    return { id: `dm-${userId}` };
   },
 };

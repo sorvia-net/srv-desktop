@@ -14,7 +14,11 @@ import { Settings } from "@/screens/Settings";
 import { Storage } from "@/screens/Storage";
 import { Store } from "@/screens/Store";
 import { Tasks } from "@/screens/Tasks";
+import { Admin } from "@/screens/Admin";
+import { Founder } from "@/screens/Founder";
+import { Games } from "@/screens/Games";
 import { Orders } from "@/screens/Orders";
+import { Products } from "@/screens/Products";
 import { Status } from "@/screens/Status";
 import { Tickets } from "@/screens/Tickets";
 import { Users } from "@/screens/Users";
@@ -40,6 +44,10 @@ const SCREENS: Record<ModuleId, ComponentType> = {
   users: Users,
   orders: Orders,
   status: Status,
+  products: Products,
+  admin: Admin,
+  founder: Founder,
+  games: Games,
   settings: Settings,
 };
 

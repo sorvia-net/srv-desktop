@@ -1,5 +1,5 @@
 import type {
-  AdminOrderDetail, AdminOrderPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
+  AdminOrderDetail, AdminOrderPage, AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
   ApiResult, AppNotification, CalendarEvent, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
   TicketDetail, TicketSummary,
 } from "@shared/contracts";
@@ -75,6 +75,21 @@ export const adminApi = {
   order: (id: string) => get<AdminOrderDetail>(`/api/desktop/orders/${id}`, undefined, () => preview.order(id)),
   orderAction: (id: string, action: "mark-paid" | "cancel" | "refund") => send<AdminOrderDetail>("POST", `/api/desktop/orders/${id}`, { action }, () => preview.order(id)),
   status: () => get<StatusBoard>("/api/desktop/status", undefined, () => preview.status()),
+  products: (params: { q?: string; status?: string }) => get<ProductPage>("/api/desktop/products", params, () => preview.products()),
+  product: (id: string) => get<ProductDetail>(`/api/desktop/products/${id}`, undefined, () => preview.product(id)),
+  updateProduct: (id: string, patch: { status?: string; featured?: boolean; price?: number; salePrice?: number | null }) => send<ProductDetail>("PATCH", `/api/desktop/products/${id}`, patch, () => preview.product(id)),
+  overview: () => get<AdminOverview>("/api/desktop/overview", undefined, () => preview.overview()),
+  founder: () => get<FounderOverview>("/api/desktop/founder", undefined, () => preview.founder()),
+};
+
+export const gamesApi = {
+  board: (game: GameId) => get<Leaderboard>(`/api/desktop/games/${game}`, undefined, () => preview.board(game)),
+  submit: (game: GameId, score: number, meta?: Record<string, unknown>) => send<Leaderboard>("POST", `/api/desktop/games/${game}`, { score, meta }, () => preview.board(game, score)),
+};
+
+export const peopleApi = {
+  list: () => get<ChatPerson[]>("/api/desktop/chat/people", undefined, () => preview.people()),
+  openDirect: (userId: string) => send<{ id: string }>("POST", "/api/desktop/chat/dm", { userId }, () => preview.openDirect(userId)),
 };
 
 export const voiceApi = {

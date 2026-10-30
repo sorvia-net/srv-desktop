@@ -14,9 +14,11 @@ type Remote = {
   makingOffer: boolean;
   ignoreOffer: boolean;
   audio: HTMLAudioElement;
-  screen: MediaStream | null;
+  videos: Map<string, MediaStream>;
+  labels: { screen?: string; camera?: string };
   senders: RTCRtpSender[];
   screenSender: RTCRtpSender | null;
+  cameraSender: RTCRtpSender | null;
   level: (() => number) | null;
 };
 
@@ -29,16 +31,28 @@ export type VoiceView = {
   muted: boolean;
   deafened: boolean;
   sharing: boolean;
-  peers: (VoicePeer & { me: boolean; speaking: boolean; connection: RTCPeerConnectionState | "self"; hasScreen: boolean })[];
+  camera: boolean;
+  volumes: Record<string, number>;
+  peers: (VoicePeer & { me: boolean; speaking: boolean; connection: RTCPeerConnectionState | "self"; hasScreen: boolean; hasCamera: boolean })[];
 };
 
-const IDLE: VoiceView = { status: "idle", error: null, channelId: null, channelName: null, peerId: null, muted: false, deafened: false, sharing: false, peers: [] };
+const VOLUME_KEY = "sorvia.voice.volumes";
+function loadVolumes(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(VOLUME_KEY) ?? "{}") as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
 
-let view: VoiceView = IDLE;
+const IDLE: VoiceView = { status: "idle", error: null, channelId: null, channelName: null, peerId: null, muted: false, deafened: false, sharing: false, camera: false, volumes: {}, peers: [] };
+
+let view: VoiceView = { ...IDLE, volumes: loadVolumes() };
 const listeners = new Set<() => void>();
 const remotes = new Map<string, Remote>();
 let local: MediaStream | null = null;
 let screen: MediaStream | null = null;
+let camera: MediaStream | null = null;
 let ice: RTCIceServer[] = [];
 let outbox: { to: string; kind: string; payload: unknown }[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -58,8 +72,9 @@ function emit() {
         me: peer.id === view.peerId,
         speaking: speaking.has(peer.id),
         connection: peer.id === view.peerId ? "self" : (remote?.pc.connectionState ?? "new"),
-        hasScreen: peer.id === view.peerId ? Boolean(screen) : Boolean(remote?.screen),
-        ...(peer.id === view.peerId ? { muted: view.muted, deafened: view.deafened, sharing: view.sharing } : {}),
+        hasScreen: peer.id === view.peerId ? Boolean(screen) : Boolean(remote && videoOf(remote, "screen")),
+        hasCamera: peer.id === view.peerId ? Boolean(camera) : Boolean(remote && videoOf(remote, "camera")),
+        ...(peer.id === view.peerId ? { muted: view.muted, deafened: view.deafened, sharing: view.sharing, camera: view.camera } : {}),
       };
     }),
   };
@@ -81,8 +96,53 @@ export function useVoice() {
   );
 }
 
+function videoOf(remote: Remote, kind: "screen" | "camera") {
+  const id = remote.labels[kind];
+  if (id) return remote.videos.get(id) ?? null;
+  const other = remote.labels[kind === "screen" ? "camera" : "screen"];
+  const unlabeled = [...remote.videos.entries()].filter(([key]) => key !== other);
+  if (kind === "screen" && remote.info.sharing && !remote.info.camera) return unlabeled[0]?.[1] ?? null;
+  if (kind === "camera" && remote.info.camera && !remote.info.sharing) return unlabeled[0]?.[1] ?? null;
+  return null;
+}
+
 export function remoteScreen(peerId: string) {
-  return peerId === view.peerId ? screen : (remotes.get(peerId)?.screen ?? null);
+  if (peerId === view.peerId) return screen;
+  const remote = remotes.get(peerId);
+  return remote ? videoOf(remote, "screen") : null;
+}
+
+export function remoteCamera(peerId: string) {
+  if (peerId === view.peerId) return camera;
+  const remote = remotes.get(peerId);
+  return remote ? videoOf(remote, "camera") : null;
+}
+
+function volumeFor(userId: string) {
+  return view.volumes[userId] ?? 100;
+}
+
+function applyVolume(remote: Remote) {
+  const volume = volumeFor(remote.info.userId);
+  remote.audio.volume = Math.min(1, Math.max(0, volume / 100));
+  remote.audio.muted = view.deafened || volume === 0;
+}
+
+export function setPeerVolume(userId: string, volume: number) {
+  const volumes = { ...view.volumes, [userId]: Math.round(Math.max(0, Math.min(100, volume))) };
+  try {
+    localStorage.setItem(VOLUME_KEY, JSON.stringify(volumes));
+  } catch {
+    void 0;
+  }
+  view = { ...view, volumes };
+  for (const remote of remotes.values()) if (remote.info.userId === userId) applyVolume(remote);
+  emit();
+}
+
+function announce(to?: string) {
+  const payload = { screen: screen?.id ?? null, camera: camera?.id ?? null };
+  for (const id of to ? [to] : [...remotes.keys()]) send(id, "streams", payload);
 }
 
 function analyser(stream: MediaStream) {
@@ -113,14 +173,20 @@ function connect(info: VoicePeer) {
   const audio = new Audio();
   audio.autoplay = true;
   audio.muted = view.deafened;
-  const remote: Remote = { info, pc, polite: (view.peerId ?? "") > info.id, makingOffer: false, ignoreOffer: false, audio, screen: null, senders: [], screenSender: null, level: null };
+  const remote: Remote = { info, pc, polite: (view.peerId ?? "") > info.id, makingOffer: false, ignoreOffer: false, audio, videos: new Map(), labels: {}, senders: [], screenSender: null, cameraSender: null, level: null };
   remotes.set(info.id, remote);
+  applyVolume(remote);
 
   for (const track of local?.getTracks() ?? []) remote.senders.push(pc.addTrack(track, local!));
   if (screen) {
     const track = screen.getVideoTracks()[0];
     if (track) remote.screenSender = pc.addTrack(track, screen);
   }
+  if (camera) {
+    const track = camera.getVideoTracks()[0];
+    if (track) remote.cameraSender = pc.addTrack(track, camera);
+  }
+  if (screen || camera) announce(info.id);
 
   pc.onicecandidate = (event) => {
     if (event.candidate) send(info.id, "candidate", event.candidate.toJSON());
@@ -144,13 +210,16 @@ function connect(info: VoicePeer) {
       void audio.play().catch(() => undefined);
       remote.level = analyser(audioStream);
     } else {
-      remote.screen = stream ?? new MediaStream([event.track]);
-      event.track.onended = () => {
-        remote.screen = null;
+      const video = stream ?? new MediaStream([event.track]);
+      remote.videos.set(video.id, video);
+      const drop = () => {
+        remote.videos.delete(video.id);
         emit();
       };
-      event.track.onmute = () => {
-        remote.screen = null;
+      event.track.onended = drop;
+      event.track.onmute = drop;
+      event.track.onunmute = () => {
+        remote.videos.set(video.id, video);
         emit();
       };
       emit();
@@ -197,6 +266,10 @@ async function handleSignal(signal: { from: string; kind: string; payload: unkno
       } catch (error) {
         if (!remote.ignoreOffer) throw error;
       }
+    } else if (signal.kind === "streams") {
+      const labels = signal.payload as { screen?: string | null; camera?: string | null };
+      remote.labels = { screen: labels.screen ?? undefined, camera: labels.camera ?? undefined };
+      emit();
     } else if (signal.kind === "bye") {
       disconnect(signal.from);
     }
@@ -209,7 +282,7 @@ async function loop() {
   if (!view.peerId) return;
   const signals = outbox;
   outbox = [];
-  const result = await voiceApi.sync({ peerId: view.peerId, state: { muted: view.muted, deafened: view.deafened, sharing: view.sharing }, signals });
+  const result = await voiceApi.sync({ peerId: view.peerId, state: { muted: view.muted, deafened: view.deafened, sharing: view.sharing, camera: view.camera }, signals });
   if (!view.peerId) return;
   if (!result.ok) {
     if (result.status === 410) {
@@ -252,18 +325,18 @@ function measure() {
 export async function joinVoice(channelId: string) {
   if (view.channelId === channelId && view.status !== "error") return;
   if (view.peerId) await leaveVoice();
-  set({ ...IDLE, status: "connecting", channelId });
+  set({ ...IDLE, volumes: view.volumes, status: "connecting", channelId });
   try {
     local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
   } catch {
-    set({ ...IDLE, status: "error", error: "Mikrofona erişilemedi. Windows gizlilik ayarlarında mikrofon iznini kontrol et." });
+    set({ ...IDLE, volumes: view.volumes, status: "error", error: "Mikrofona erişilemedi. Windows gizlilik ayarlarında mikrofon iznini kontrol et." });
     return;
   }
   const joined = await voiceApi.join(channelId);
   if (!joined.ok) {
     local.getTracks().forEach((track) => track.stop());
     local = null;
-    set({ ...IDLE, status: "error", error: joined.message });
+    set({ ...IDLE, volumes: view.volumes, status: "error", error: joined.message });
     return;
   }
   ice = joined.data.iceServers;
@@ -287,13 +360,15 @@ export async function leaveVoice(notify = true) {
   for (const id of [...remotes.keys()]) disconnect(id);
   local?.getTracks().forEach((track) => track.stop());
   screen?.getTracks().forEach((track) => track.stop());
+  camera?.getTracks().forEach((track) => track.stop());
   local = null;
   screen = null;
+  camera = null;
   localLevel = null;
   roster = [];
   outbox = [];
   speaking.clear();
-  view = IDLE;
+  view = { ...IDLE, volumes: view.volumes };
   emit();
   if (peerId && notify) await voiceApi.leave(peerId);
   invalidate("chat:channels");
@@ -307,9 +382,9 @@ export function toggleMute() {
 
 export function toggleDeafen() {
   const deafened = !view.deafened;
-  for (const remote of remotes.values()) remote.audio.muted = deafened;
   local?.getAudioTracks().forEach((track) => (track.enabled = !deafened && !view.muted));
   set({ deafened, muted: deafened ? true : view.muted });
+  for (const remote of remotes.values()) applyVolume(remote);
   if (!deafened) local?.getAudioTracks().forEach((track) => (track.enabled = !view.muted));
 }
 
@@ -326,6 +401,7 @@ export async function startScreenShare(sourceId: string) {
   track.contentHint = "detail";
   track.onended = () => void stopScreenShare();
   for (const remote of remotes.values()) remote.screenSender = remote.pc.addTrack(track, screen);
+  announce();
   set({ sharing: true });
 }
 
@@ -342,5 +418,39 @@ export async function stopScreenShare() {
   }
   screen?.getTracks().forEach((track) => track.stop());
   screen = null;
+  announce();
   set({ sharing: false });
+}
+
+export async function startCamera() {
+  if (!view.peerId || camera) return;
+  try {
+    camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false });
+  } catch {
+    set({ error: "Kameraya erişilemedi. Windows gizlilik ayarlarında kamera iznini kontrol et." });
+    return;
+  }
+  const track = camera.getVideoTracks()[0]!;
+  track.contentHint = "motion";
+  track.onended = () => void stopCamera();
+  for (const remote of remotes.values()) remote.cameraSender = remote.pc.addTrack(track, camera);
+  announce();
+  set({ camera: true });
+}
+
+export async function stopCamera() {
+  for (const remote of remotes.values()) {
+    if (remote.cameraSender) {
+      try {
+        remote.pc.removeTrack(remote.cameraSender);
+      } catch {
+        void 0;
+      }
+      remote.cameraSender = null;
+    }
+  }
+  camera?.getTracks().forEach((track) => track.stop());
+  camera = null;
+  announce();
+  set({ camera: false });
 }
