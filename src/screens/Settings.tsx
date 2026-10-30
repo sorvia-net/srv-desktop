@@ -14,6 +14,8 @@ import { Avatar, cn, Kbd, Segmented, Spinner, Switch } from "@/design/ui";
 import { useOs } from "@/os/state";
 import { useSession } from "@/shell/context";
 import { ask } from "@/shell/ask";
+import { compareVersions, useInstalledModules } from "@/modules/loader";
+import { catalog, type AppDef } from "@/os/registry";
 
 const WALLPAPER_PREVIEW: Record<Exclude<Wallpaper, "custom">, string> = {
   ember: "radial-gradient(circle at 50% 0%, #ffcf8f 0%, #b56a2c 30%, #2a1f19 65%), radial-gradient(circle at 90% 100%, #e07a2e, transparent 40%)",
@@ -122,6 +124,8 @@ export function Settings() {
         <Screens />
 
         <SoftwareUpdate />
+
+        <AppVersions />
 
         <Group title="Hakkında">
           <Row label="Sorvia Desktop" value={`Sürüm ${bridge.version}`} icon={<Info className="size-4" />} />
@@ -364,6 +368,33 @@ function Screens() {
       {screens.map((item) => (
         <Row key={item.id} label={item.label} value={`${item.width}×${item.height}${item.main ? " · ana pencere" : item.open ? " · Sorvia açık" : ""}${item.primary ? " · birincil" : ""}`} />
       ))}
+    </Group>
+  );
+}
+
+function AppVersions() {
+  const modules = useInstalledModules();
+  const [checking, setChecking] = useState(false);
+  const apps = catalog().filter((item): item is AppDef => item.kind === "app" && item.id !== "web");
+  return (
+    <Group title="Uygulama sürümleri" footer="Uygulamalar Sorvia Desktop'tan bağımsız güncellenir; yeni sürüm gelince kendiliğinden kurulur ve uygulamayı bir sonraki açışında kullanılır.">
+      {apps.map((app) => {
+        const remote = modules[app.id];
+        const version = remote && compareVersions(remote.version, app.version) > 0 ? remote.version : app.version;
+        return <Row key={app.id} label={app.title} value={remote && version === remote.version ? `${version} · güncellendi` : version} />;
+      })}
+      <div className="flex justify-end px-5 py-3">
+        <button
+          disabled={checking}
+          onClick={() => {
+            setChecking(true);
+            void bridge.modules.check().finally(() => setChecking(false));
+          }}
+          className="rounded-full bg-white/[0.08] px-3.5 py-1.5 text-[12.5px] font-medium text-ink hover:bg-white/[0.14] disabled:opacity-50"
+        >
+          {checking ? "Denetleniyor…" : "Uygulama güncellemelerini denetle"}
+        </button>
+      </div>
     </Group>
   );
 }

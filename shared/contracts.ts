@@ -82,6 +82,8 @@ export type CalendarEvent = {
   href: string | null;
 };
 
+export type InstalledModule = { version: string; notes: string | null; installedAt: string };
+
 export type ScreenInfo = { id: number; label: string; width: number; height: number; primary: boolean; main: boolean; open: boolean };
 
 export type AppNotification = {
@@ -362,6 +364,11 @@ export type SorviaBridge = {
     get(): Promise<Preferences>;
     set(patch: Partial<Preferences>): Promise<Preferences>;
     onChange(listener: (prefs: Preferences) => void): () => void;
+  };
+  modules: {
+    installed(): Promise<Record<string, InstalledModule>>;
+    check(): Promise<void>;
+    onUpdated(listener: (list: Record<string, InstalledModule>) => void): () => void;
   };
   system: {
     openExternal(url: string): Promise<void>;

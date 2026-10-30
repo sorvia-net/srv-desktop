@@ -11,6 +11,7 @@ import { auth, setLinkOpener } from "./auth";
 import { badgeImage } from "./badge";
 import { APP_ORIGIN, DEV_URL, IS_DEV, SERVER, userAgent } from "./config";
 import { mail } from "./mail";
+import { installedModules, modules } from "./modules";
 import { createNotifier, toast } from "./notifier";
 import { files } from "./files";
 import { store } from "./store";
@@ -703,6 +704,8 @@ function registerIpc() {
   handle("system:unlockedVersion", () => store.unlockedVersion());
   handle("system:markUnlocked", () => store.setUnlockedVersion(app.getVersion()));
   handle("system:screenSources", () => screenSources());
+  handle("modules:installed", () => installedModules());
+  handle("modules:check", () => modules.check());
   handle("system:chooseScreen", (id, audio) => {
     chosenScreen = typeof id === "string" ? id : null;
     chosenAudio = audio === true;
@@ -723,6 +726,11 @@ function registerProtocol() {
     const url = new URL(incoming.url);
     if (url.host !== "app") return new Response("Bulunamadı", { status: 404 });
     const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html";
+    if (relativePath.startsWith("modules/")) {
+      const moduleFile = modules.resolveFile(relativePath);
+      if (!moduleFile || !existsSync(moduleFile)) return new Response("Bulunamadı", { status: 404 });
+      return new Response(readFileSync(moduleFile), { status: 200, headers: { "Content-Type": moduleFile.endsWith(".css") ? "text/css; charset=utf-8" : "text/javascript; charset=utf-8", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store" } });
+    }
     const file = resolve(DIST, relativePath);
     if (!file.startsWith(DIST + sep)) return new Response("Yasak", { status: 403 });
     try {
@@ -801,6 +809,7 @@ if (!app.requestSingleInstanceLock()) {
 
     auth.onChange((state) => {
       send("auth:changed", state);
+      if (state.status === "signedIn") void modules.check();
       syncScreens();
       refreshTray();
     });
@@ -856,8 +865,11 @@ if (!app.requestSingleInstanceLock()) {
       toast({ open: command, icon: () => image("icon.png") }, `Sorvia Desktop ${version} hazır`, "Yeniden başlattığında güncelleme kurulacak.", null);
     });
 
+    modules.init((list) => send("modules:updated", list));
     createWindow();
     createTray();
+    setTimeout(() => void modules.check(), 10_000);
+    setInterval(() => void modules.check(), 30 * 60 * 1000);
     applyPrefs(store.prefs());
     win?.once("ready-to-show", () => setTimeout(syncScreens, 1500));
     screen.on("display-added", syncScreens);

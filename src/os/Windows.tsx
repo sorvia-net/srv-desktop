@@ -31,6 +31,7 @@ import { Tile } from "./icons";
 import { appById, itemById, resolveLayout } from "./registry";
 import { useModules } from "./modules";
 import { AppNav, useOs } from "./state";
+import { ModuleScreen } from "@/modules/loader";
 
 const SCREENS: Partial<Record<ModuleId, ComponentType>> = {
   home: Home,
@@ -67,7 +68,7 @@ function AppWindow({ id, active }: { id: ModuleId; active: boolean }) {
       style={{ transformOrigin: origin, pointerEvents: active ? "auto" : "none", zIndex: active ? 20 : 10 }}
     >
       <div className="h-full px-9 pb-10 pt-7">
-        <AppNav id={id}>{Screen ? <Screen /> : null}</AppNav>
+        <AppNav id={id}>{Screen ? <ModuleScreen id={id} builtin={Screen} builtinVersion={appById(id).version} /> : null}</AppNav>
       </div>
       <button onClick={os.goHome} title="Ana ekran (Ctrl+H)" aria-label="Ana ekran" className="group absolute bottom-1.5 left-1/2 z-10 flex h-5 w-56 -translate-x-1/2 items-center justify-center">
         <span className="h-[5px] w-[134px] rounded-full bg-white/45 transition-all group-hover:w-[160px] group-hover:bg-white/80" />

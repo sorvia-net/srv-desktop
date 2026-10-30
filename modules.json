@@ -1,0 +1,20 @@
+{
+  "home": { "file": "src/screens/Home.tsx", "export": "Home", "title": "My Sorvia" },
+  "tasks": { "file": "src/screens/Tasks.tsx", "export": "Tasks", "title": "Görevler" },
+  "calendar": { "file": "src/screens/Calendar.tsx", "export": "Calendar", "title": "Takvim" },
+  "tickets": { "file": "src/screens/Tickets.tsx", "export": "Tickets", "title": "Destek" },
+  "mail": { "file": "src/screens/Mail.tsx", "export": "Mail", "title": "Sorvia Mail" },
+  "chat": { "file": "src/screens/Chat.tsx", "export": "Chat", "title": "Ekip" },
+  "gallery": { "file": "src/screens/Gallery.tsx", "export": "Gallery", "title": "Galeri" },
+  "storage": { "file": "src/screens/Storage.tsx", "export": "Storage", "title": "Depolama" },
+  "users": { "file": "src/screens/Users.tsx", "export": "Users", "title": "Kullanıcılar" },
+  "orders": { "file": "src/screens/Orders.tsx", "export": "Orders", "title": "Siparişler" },
+  "status": { "file": "src/screens/Status.tsx", "export": "Status", "title": "Durum" },
+  "products": { "file": "src/screens/Products.tsx", "export": "Products", "title": "Ürünler" },
+  "admin": { "file": "src/screens/Admin.tsx", "export": "Admin", "title": "Yönetim" },
+  "founder": { "file": "src/screens/Founder.tsx", "export": "Founder", "title": "Kurucu paneli" },
+  "games": { "file": "src/screens/Games.tsx", "export": "Games", "title": "Oyunlar" },
+  "store": { "file": "src/screens/Store.tsx", "export": "Store", "title": "Mağaza" },
+  "settings": { "file": "src/screens/Settings.tsx", "export": "Settings", "title": "Ayarlar" },
+  "web": { "file": "src/screens/Web.tsx", "export": "Web", "title": "Tarayıcı" }
+}

@@ -58,6 +58,11 @@ const bridge: SorviaBridge = {
     set: (patch) => ipcRenderer.invoke("prefs:set", patch),
     onChange: (listener) => listen("prefs:changed", listener),
   },
+  modules: {
+    installed: () => ipcRenderer.invoke("modules:installed"),
+    check: () => ipcRenderer.invoke("modules:check"),
+    onUpdated: (listener) => listen("modules:updated", listener),
+  },
   system: {
     openExternal: (url) => ipcRenderer.invoke("system:openExternal", url),
     openAppWindow: (url, id) => ipcRenderer.invoke("system:openAppWindow", url, id),

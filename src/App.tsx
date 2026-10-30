@@ -15,7 +15,7 @@ import { ControlCenter } from "@/os/ControlCenter";
 import { BadgeContext, HomeScreen } from "@/os/Home";
 import { LockScreen } from "@/os/LockScreen";
 import { ModulesProvider, useModules } from "@/os/modules";
-import { catalog } from "@/os/registry";
+import { appById, catalog } from "@/os/registry";
 import { OsProvider, useOs } from "@/os/state";
 import { StatusBar } from "@/os/StatusBar";
 import { AppHost, AppSwitcher } from "@/os/Windows";
@@ -25,6 +25,7 @@ import { OverlayProvider, SessionProvider, useOverlay, useSession } from "@/shel
 import { CommandPalette, NotificationCenter, PreviewBanner, QuickTask, Toasts } from "@/shell/overlays";
 import { useWebBadges } from "@/data/feed";
 import { AskHost } from "@/shell/ask";
+import { startModules, useInstalledModules } from "@/modules/loader";
 
 async function nextMailAccount(session: { toast: (message: string, tone?: "ok" | "bad" | "info") => void }) {
   const accounts = await bridge.mail.accounts();
@@ -187,6 +188,17 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     });
   }, [session.preview]);
   useEffect(() => bridge.system.onUpdateReady(setUpdate), []);
+  useEffect(() => startModules(), []);
+  const moduleVersions = useInstalledModules();
+  const seenModules = useRef<Record<string, string> | null>(null);
+  useEffect(() => {
+    const previous = seenModules.current;
+    seenModules.current = Object.fromEntries(Object.entries(moduleVersions).map(([id, item]) => [id, item.version]));
+    if (!previous) return;
+    for (const [id, item] of Object.entries(moduleVersions)) {
+      if (previous[id] && previous[id] !== item.version) latest.current.session.toast(`${appById(id as ModuleId).title} ${item.version} sürümüne güncellendi${item.notes ? ` · ${item.notes}` : ""}`.slice(0, 160), "ok");
+    }
+  }, [moduleVersions]);
   useEffect(() => {
     bridge.system.reportOpenApps(os.openApps);
   }, [os.openApps]);
