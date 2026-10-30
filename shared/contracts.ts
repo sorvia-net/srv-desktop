@@ -380,6 +380,8 @@ export type SorviaBridge = {
     screens(): Promise<ScreenInfo[]>;
     shareLock(locked: boolean): void;
     reportOpenApps(list: string[]): void;
+    shareState(kind: string, payload: unknown): void;
+    onSharedState(listener: (value: { kind: string; payload: unknown }) => void): () => void;
     claimApp(id: string, params?: Record<string, string> | null): Promise<boolean>;
     onActivateApp(listener: (value: { id: string; params: Record<string, string> | null }) => void): () => void;
     onLockState(listener: (locked: boolean) => void): () => void;

@@ -597,6 +597,10 @@ function registerIpc() {
     }
     return true;
   });
+  ipcMain.on("system:shareState", (event, kind, payload) => {
+    if (!trusted(event) || typeof kind !== "string" || kind.length > 40) return;
+    for (const target of [win, ...extras.values()]) if (target && !target.isDestroyed() && target.webContents !== event.sender) target.webContents.send("system:sharedState", { kind, payload });
+  });
   ipcMain.on("system:lockState", (event, locked) => {
     if (!trusted(event) || typeof locked !== "boolean") return;
     for (const target of [win, ...extras.values()]) if (target && !target.isDestroyed() && target.webContents !== event.sender) target.webContents.send("system:lockState", locked);
