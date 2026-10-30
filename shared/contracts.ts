@@ -18,7 +18,7 @@ export type DesktopUser = {
   modules: ModuleId[];
   timeZone: string;
   memberSince: string;
-  unlock?: { password: boolean; passkey: boolean };
+  unlock?: { password: boolean; passkey: boolean; hello?: boolean };
 };
 
 export type TaskStatus = "todo" | "doing" | "review" | "done";

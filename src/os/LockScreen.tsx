@@ -29,7 +29,8 @@ export function LockScreen() {
   useEffect(() => {
     void helloAvailable().then(setHello);
   }, []);
-  const useHello = hello && methods.passkey;
+  const useHello = methods.passkey;
+  const autoHello = hello && Boolean(methods.hello);
   const free = session.preview || (!methods.password && !useHello);
 
   const tried = useRef(false);
@@ -42,7 +43,7 @@ export function LockScreen() {
     }
     const timer = setTimeout(() => {
       input.current?.focus();
-      if (!tried.current && !free && useHello && session.prefs.faceAuto && document.hasFocus()) {
+      if (!tried.current && !free && autoHello && session.prefs.faceAuto && document.hasFocus()) {
         tried.current = true;
         void passkey();
       }
@@ -140,7 +141,7 @@ export function LockScreen() {
             {!free && useHello && (
               <button onClick={() => void passkey()} disabled={busy !== null} className="mt-3 flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-white/85 hover:bg-white/10 hover:text-white">
                 {busy === "passkey" ? <Spinner className="size-3.5" /> : <ScanFace className="size-4" />}
-                {busy === "passkey" ? "Windows Hello bekleniyor…" : "Windows Hello ile aç"}
+                {busy === "passkey" ? "Geçiş anahtarı bekleniyor…" : "Geçiş anahtarıyla aç"}
               </button>
             )}
             <p className="mt-3 h-4 text-[12px] text-[#ffd1d1] [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]">{error}</p>
