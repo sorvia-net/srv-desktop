@@ -65,7 +65,7 @@ export function Products() {
               {items.map((item) => (
                 <button key={item.id} onClick={() => setSelected(item.id)} className={cn("focus-ring flex flex-col gap-3 rounded-[22px] bg-white/[0.05] p-4 text-left ring-2 transition hover:bg-white/[0.08]", selected === item.id ? "ring-accent" : "ring-transparent")}>
                   <div className="flex items-start gap-3">
-                    {item.image ? <img src={item.image} alt="" className="size-12 rounded-[14px] object-cover" /> : <span className="flex size-12 items-center justify-center rounded-[14px] bg-accent/20 text-accent-2"><Package className="size-6" /></span>}
+                    {item.image ? <img src={item.image} alt="" className="size-12 rounded-[14px] bg-white/[0.06] object-contain p-1" /> : <span className="flex size-12 items-center justify-center rounded-[14px] bg-accent/20 text-accent-2"><Package className="size-6" /></span>}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[14.5px] font-semibold text-ink">{item.name}</span>
                       <span className="block truncate text-[12px] text-ink-3">{item.tagline ?? TYPE[item.type] ?? item.type}</span>
@@ -129,7 +129,7 @@ function ProductPanel({ id, onClose }: { id: string; onClose: () => void }) {
         product.error ? <ErrorNote message={product.error} onRetry={product.refresh} /> : <Skeleton className="h-60 rounded-[20px]" />
       ) : (
         <>
-          {data.image && <img src={data.image} alt="" className="mb-4 h-36 w-full rounded-[18px] object-cover" />}
+          {(data.cover ?? data.image) && <img src={(data.cover ?? data.image)!} alt="" className={cn("mb-4 h-36 w-full rounded-[18px] bg-white/[0.04]", data.cover ? "object-cover" : "object-contain p-4")} />}
           <p className="text-[19px] font-semibold text-ink">{data.name}</p>
           <p className="text-[13px] text-ink-3">{data.tagline}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">

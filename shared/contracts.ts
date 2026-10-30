@@ -404,7 +404,7 @@ export type SorviaBridge = {
 };
 
 export type ChatPerson = { id: string; name: string; avatarUrl: string | null; role: Role; online: boolean; inVoice: boolean };
-export type ProductRow = { id: string; slug: string; name: string; tagline: string | null; type: string; status: string; price: number; salePrice: number | null; currency: string; isFree: boolean; image: string | null; downloads: number; rating: number | null; featured: boolean; licenses: number; versions: number; sold30: number; updatedAt: string };
+export type ProductRow = { id: string; slug: string; name: string; tagline: string | null; type: string; status: string; price: number; salePrice: number | null; currency: string; isFree: boolean; image: string | null; cover?: string | null; downloads: number; rating: number | null; featured: boolean; licenses: number; versions: number; sold30: number; updatedAt: string };
 export type ProductPage = { canEdit: boolean; items: ProductRow[] };
 export type ProductDetail = Omit<ProductRow, "licenses" | "versions" | "sold30" | "rating" | "updatedAt"> & {
   summary: string | null; views: number; bestSeller: boolean; isNew: boolean; licenseCode: string | null; createdAt: string; publishedAt: string | null;
