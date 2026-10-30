@@ -1,4 +1,4 @@
-import { Camera, Check, RefreshCw, ExternalLink, ImagePlus, Info, Keyboard, LogOut, Mail, Monitor, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Camera, Check, RefreshCw, ScanFace, ExternalLink, ImagePlus, Info, Keyboard, LogOut, Mail, Monitor, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -62,6 +62,7 @@ export function Settings() {
             </div>
             <span className="rounded-full bg-accent/15 px-3 py-1 text-[12px] font-semibold text-accent-2">{session.user.roleLabel}</span>
           </div>
+          <FaceUnlock />
           <Row label="Sunucu" value={server} />
           <Row label="Oturum geçerlilik" value={expires} />
           <button onClick={session.logout} className="focus-ring flex w-full items-center gap-3 px-5 py-3.5 text-left text-[14px] font-medium text-bad hover:bg-white/[0.04]">
@@ -375,5 +376,59 @@ function SoftwareUpdate() {
         )}
       </div>
     </Group>
+  );
+}
+
+function FaceUnlock() {
+  const session = useSession();
+  const methods = session.user.unlock ?? { password: true, passkey: false };
+  const [asking, setAsking] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const setup = async () => {
+    if (session.preview) return session.toast("Önizlemede yüz tanıma kurulmaz", "info");
+    if (methods.password && !asking) return setAsking(true);
+    setBusy(true);
+    const result = await bridge.system.passkeySetup(password);
+    setBusy(false);
+    if (!result.ok) {
+      if (result.error !== "cancelled") session.toast(result.message, "bad");
+      return;
+    }
+    setAsking(false);
+    setPassword("");
+    session.toast("Yüz tanıma kuruldu; kilit ekranında kendiliğinden başlayacak", "ok");
+  };
+
+  return (
+    <>
+      <div className="flex items-center gap-3 px-5 py-3.5">
+        <ScanFace className="size-4 text-ink-3" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14px] text-ink">Yüz tanıma (Windows Hello)</span>
+          <span className="block text-[12px] text-ink-3">{methods.passkey ? "Kurulu · kilit ekranı yüzünle açılır" : "Kilidi kameraya bakarak aç"}</span>
+        </span>
+        {!asking && (
+          <button disabled={busy} onClick={() => void setup()} className={cn("rounded-full px-3.5 py-1.5 text-[12.5px] font-medium", methods.passkey ? "bg-white/[0.08] text-ink hover:bg-white/[0.14]" : "accent-fill")}>
+            {busy ? "Bekleniyor…" : methods.passkey ? "Bu cihazı yeniden ekle" : "Kur"}
+          </button>
+        )}
+      </div>
+      {asking && (
+        <form
+          className="flex items-center gap-2 px-5 pb-3.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void setup();
+          }}
+        >
+          <input autoFocus type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Onay için hesap parolan" className="h-9 min-w-0 flex-1 rounded-[10px] bg-black/30 px-3 text-[13px] text-ink outline-none ring-1 ring-white/10 focus:ring-accent/60" />
+          <button type="submit" disabled={!password || busy} className="accent-fill rounded-full px-4 py-1.5 text-[12.5px] font-semibold disabled:opacity-50">{busy ? "Bekleniyor…" : "Devam"}</button>
+          <button type="button" onClick={() => setAsking(false)} className="text-[12.5px] text-ink-3 hover:text-ink">Vazgeç</button>
+        </form>
+      )}
+      {methods.passkey && <Toggle label="Kilit ekranında yüz tanımayı kendiliğinden başlat" checked={session.prefs.faceAuto} onChange={(value) => session.setPrefs({ faceAuto: value })} />}
+    </>
   );
 }

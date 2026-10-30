@@ -197,6 +197,7 @@ export type Preferences = {
   shortcuts: Record<string, string>;
   toastPosition: ToastPosition;
   notificationSound: NotificationSound;
+  faceAuto: boolean;
 };
 
 export type UpdateStatus = { state: "idle" | "checking" | "latest" | "downloading" | "ready" | "error" | "unavailable"; version: string | null; percent: number | null; message: string | null };
@@ -366,6 +367,7 @@ export type SorviaBridge = {
     checkUpdate(): Promise<UpdateInfo | null>;
     installUpdate(): void;
     passkeyUnlock(): Promise<ApiResult<true>>;
+    passkeySetup(password: string): Promise<ApiResult<true>>;
     unlockedVersion(): Promise<string | null>;
     markUnlocked(): Promise<void>;
     screenSources(): Promise<{ id: string; name: string; thumbnail: string; display: boolean }[]>;

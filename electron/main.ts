@@ -276,20 +276,26 @@ async function screenSources() {
     .map((source) => ({ id: source.id, name: source.id.startsWith("screen:") ? `Ekran ${source.display_id || ""}`.trim() : source.name, thumbnail: source.thumbnail.toDataURL(), display: source.id.startsWith("screen:") }));
 }
 
-async function passkeyUnlock() {
-  const started = await request<{ code: string; url: string }>("POST", "/api/desktop/unlock/passkey", undefined, {});
+async function passkeyUnlock(kind: "unlock" | "register" = "unlock", password = "") {
+  const started =
+    kind === "register"
+      ? await request<{ code: string; url: string }>("POST", "/api/desktop/unlock/passkey/register", undefined, { password })
+      : await request<{ code: string; url: string }>("POST", "/api/desktop/unlock/passkey", undefined, {});
   if (!started.ok) return started;
   const popup = new BrowserWindow({
-    width: 460,
-    height: 560,
+    width: 340,
+    height: 260,
     parent: win ?? undefined,
-    modal: Boolean(win),
-    title: "Geçiş anahtarıyla doğrula",
-    autoHideMenuBar: true,
-    backgroundColor: "#0d0a09",
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    title: "Yüz tanıma",
+    backgroundColor: "#100d0b",
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: "sorvia-unlock" },
   });
   popup.setMenu(null);
+  popup.once("ready-to-show", () => popup.focus());
   void popup.loadURL(started.data.url);
   const deadline = Date.now() + 5 * 60_000;
   return new Promise<{ ok: true; data: true } | { ok: false; status: number; error: string; message: string }>((resolve) => {
@@ -478,6 +484,11 @@ function registerIpc() {
   handle("system:wallpaperImage", () => wallpaperImage());
   on("system:installUpdate", () => updater.install());
   handle("system:passkeyUnlock", () => passkeyUnlock());
+  handle("system:passkeySetup", async (password) => {
+    const result = await passkeyUnlock("register", typeof password === "string" ? password.slice(0, 200) : "");
+    if (result.ok) await auth.refresh();
+    return result;
+  });
   handle("system:unlockedVersion", () => store.unlockedVersion());
   handle("system:markUnlocked", () => store.setUnlockedVersion(app.getVersion()));
   handle("system:screenSources", () => screenSources());

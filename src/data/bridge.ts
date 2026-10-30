@@ -25,6 +25,7 @@ const DEFAULT_PREFS: Preferences = {
   shortcuts: {},
   toastPosition: "bottom-center",
   notificationSound: "ses1",
+  faceAuto: true,
 };
 
 function webBridge(): SorviaBridge {
@@ -35,7 +36,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.5.2",
+    version: "0.6.0",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -110,6 +111,7 @@ function webBridge(): SorviaBridge {
       checkUpdate: async () => null,
       installUpdate: () => undefined,
       passkeyUnlock: async () => unavailable(),
+      passkeySetup: async () => unavailable(),
       unlockedVersion: async () => "0.0.0",
       markUnlocked: async () => undefined,
       screenSources: async () => [],

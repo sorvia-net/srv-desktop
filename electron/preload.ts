@@ -67,6 +67,7 @@ const bridge: SorviaBridge = {
     checkUpdate: () => ipcRenderer.invoke("system:checkUpdate"),
     installUpdate: () => ipcRenderer.send("system:installUpdate"),
     passkeyUnlock: () => ipcRenderer.invoke("system:passkeyUnlock"),
+    passkeySetup: (password) => ipcRenderer.invoke("system:passkeySetup", password),
     unlockedVersion: () => ipcRenderer.invoke("system:unlockedVersion"),
     markUnlocked: () => ipcRenderer.invoke("system:markUnlocked"),
     screenSources: () => ipcRenderer.invoke("system:screenSources"),

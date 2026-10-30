@@ -25,6 +25,7 @@ export const DEFAULT_PREFS: Preferences = {
   shortcuts: {},
   toastPosition: "bottom-center",
   notificationSound: "ses1",
+  faceAuto: true,
 };
 
 type Shape = {
@@ -90,6 +91,7 @@ function sanitizePrefs(input: Record<string, unknown>): Preferences {
   prefs.shortcuts = sanitizeShortcuts(input.shortcuts);
   if (isOneOf(TOAST_POSITIONS, input.toastPosition)) prefs.toastPosition = input.toastPosition;
   if (isOneOf(SOUNDS, input.notificationSound)) prefs.notificationSound = input.notificationSound;
+  if (typeof input.faceAuto === "boolean") prefs.faceAuto = input.faceAuto;
   if (typeof input.pollSeconds === "number" && Number.isFinite(input.pollSeconds)) prefs.pollSeconds = Math.min(600, Math.max(15, Math.round(input.pollSeconds)));
   if (typeof input.doNotDisturb === "boolean") prefs.doNotDisturb = input.doNotDisturb;
   if (typeof input.autoLockMinutes === "number" && [0, 5, 15, 30, 60].includes(input.autoLockMinutes)) prefs.autoLockMinutes = input.autoLockMinutes;

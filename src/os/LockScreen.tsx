@@ -1,4 +1,4 @@
-import { ArrowRight, Fingerprint, KeyRound, Lock } from "lucide-react";
+import { ArrowRight, Lock, ScanFace } from "lucide-react";
 import { AnimatePresence, motion, useAnimationControls } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
@@ -26,13 +26,21 @@ export function LockScreen() {
   const methods = session.user.unlock ?? { password: true, passkey: false };
   const free = session.preview || (!methods.password && !methods.passkey);
 
+  const tried = useRef(false);
   useEffect(() => {
     if (!os.locked) {
       setPassword("");
       setError(null);
+      tried.current = false;
       return;
     }
-    const timer = setTimeout(() => input.current?.focus(), 350);
+    const timer = setTimeout(() => {
+      input.current?.focus();
+      if (!tried.current && !free && methods.passkey && session.prefs.faceAuto && document.hasFocus()) {
+        tried.current = true;
+        void passkey();
+      }
+    }, 600);
     return () => clearTimeout(timer);
   }, [os.locked]);
 
@@ -124,9 +132,9 @@ export function LockScreen() {
               ) : null}
             </motion.form>
             {!free && methods.passkey && (
-              <button onClick={() => void passkey()} disabled={busy !== null} className="mt-3 flex items-center gap-1.5 text-[12.5px] text-white/85 hover:text-white">
-                {busy === "passkey" ? <Spinner className="size-3.5" /> : methods.password ? <KeyRound className="size-3.5" /> : <Fingerprint className="size-4" />}
-                {methods.password ? "Geçiş anahtarı kullan" : "Geçiş anahtarıyla aç"}
+              <button onClick={() => void passkey()} disabled={busy !== null} className="mt-3 flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-white/85 hover:bg-white/10 hover:text-white">
+                {busy === "passkey" ? <Spinner className="size-3.5" /> : <ScanFace className="size-4" />}
+                {busy === "passkey" ? "Yüzün tanınıyor…" : "Yüz tanıma ile aç"}
               </button>
             )}
             <p className="mt-3 h-4 text-[12px] text-[#ffd1d1] [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]">{error}</p>
