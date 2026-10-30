@@ -11,6 +11,7 @@ import { invalidate, useQuery } from "@/data/query";
 import { onTransferDone } from "@/data/transfers";
 import { Button, cn, Empty, ErrorNote, IconButton, Pill, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 export function Gallery() {
   const session = useSession();
@@ -153,7 +154,7 @@ function Inspector({ item, canDelete, onClose }: { item: MediaItem; canDelete: b
 
   const remove = async () => {
     const used = item.usedIn?.length ?? 0;
-    if (!window.confirm(used ? `Bu görsel ${used} yerde kullanılıyor. Yine de silinsin mi?` : `${item.fileName} silinsin mi?`)) return;
+    if (!(await ask({ title: `${item.fileName} silinsin mi?`, body: used ? `Bu görsel ${used} yerde kullanılıyor. Silersen o sayfalarda görünmez.` : "Görsel kalıcı olarak silinir.", action: "Sil", danger: true }))) return;
     const result = await galleryApi.remove(item.id, used > 0);
     if (!result.ok) return session.toast(result.message, "bad");
     session.toast("Görsel silindi", "ok");

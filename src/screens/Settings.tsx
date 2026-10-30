@@ -13,6 +13,7 @@ import { playSound } from "@/data/sound";
 import { Avatar, cn, Kbd, Segmented, Spinner, Switch } from "@/design/ui";
 import { useOs } from "@/os/state";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 const WALLPAPER_PREVIEW: Record<Exclude<Wallpaper, "custom">, string> = {
   ember: "radial-gradient(circle at 50% 0%, #ffcf8f 0%, #b56a2c 30%, #2a1f19 65%), radial-gradient(circle at 90% 100%, #e07a2e, transparent 40%)",
@@ -219,7 +220,7 @@ function MailAccounts() {
             aria-label="Hesabı kaldır"
             className="rounded-full p-1.5 text-ink-3 hover:bg-white/10 hover:text-bad"
             onClick={async () => {
-              if (!window.confirm(`${item.address} bu bilgisayardan kaldırılsın mı?`)) return;
+              if (!(await ask({ title: `${item.address} kaldırılsın mı?`, body: "Hesap ve kayıtlı parolası bu bilgisayardan silinir.", action: "Kaldır", danger: true }))) return;
               await bridge.mail.disconnect(item.id);
               refresh();
             }}

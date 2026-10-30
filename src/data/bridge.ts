@@ -38,7 +38,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.9.5",
+    version: "0.9.6",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -123,6 +123,9 @@ function webBridge(): SorviaBridge {
       markUnlocked: async () => undefined,
       screens: async () => [],
       shareLock: () => undefined,
+      reportOpenApps: () => undefined,
+      claimApp: async () => true,
+      onActivateApp: () => () => undefined,
       onLockState: () => () => undefined,
       screenSources: async () => [],
       chooseScreen: async () => undefined,

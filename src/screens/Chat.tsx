@@ -6,11 +6,12 @@ import type { ChatChannel, ChatPerson } from "@shared/contracts";
 import { api, peopleApi, voiceApi } from "@/data/api";
 import { bridge } from "@/data/bridge";
 import { invalidate, useQuery } from "@/data/query";
-import { getDevices, getShareQuality, joinVoice, leaveVoice, remoteCamera, remoteScreen, setDevices, setPeerVolume, setShareQuality, startCamera, startScreenShare, stopCamera, stopScreenShare, toggleDeafen, toggleMute, useVoice } from "@/data/voice";
+import { getDevices, getShareQuality, joinVoice, leaveVoice, remoteCamera, remoteScreen, setDevices, setPeerVolume, setShareQuality, startCamera, switchCamera, startScreenShare, stopCamera, stopScreenShare, toggleDeafen, toggleMute, useVoice } from "@/data/voice";
 import { Avatar, Button, cn, Empty, ErrorNote, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
 
 import { ChannelView } from "./ChatChannel";
+import { ask } from "@/shell/ask";
 
 export function Chat() {
   const session = useSession();
@@ -176,7 +177,8 @@ function VoiceDock() {
   const [shareMenu, setShareMenu] = useState(false);
   if (voice.status === "idle") return null;
   const ping = voice.ping ?? voice.serverPing;
-  const tone = ping === null ? "text-ok" : ping < 120 ? "text-ok" : ping < 250 ? "text-warn" : "text-bad";
+  const limit = voice.ping !== null ? [120, 250] : [220, 450];
+  const tone = ping === null ? "text-ok" : ping < limit[0]! ? "text-ok" : ping < limit[1]! ? "text-warn" : "text-bad";
   return (
     <div className="relative mt-3 rounded-[18px] bg-white/[0.07] p-3 ring-1 ring-white/10">
       {voice.status === "error" ? (
@@ -228,6 +230,7 @@ function VoiceSettings({ onClose }: { onClose: () => void }) {
   }, []);
   const inputs = devices.filter((item) => item.kind === "audioinput");
   const outputs = devices.filter((item) => item.kind === "audiooutput");
+  const cameras = devices.filter((item) => item.kind === "videoinput");
   const label = (item: MediaDeviceInfo, index: number) => (item.deviceId === "default" ? `Varsayılan${item.label ? ` (${item.label.replace(/^Default - |^Varsayılan - /, "")})` : ""}` : item.label || `Aygıt ${index + 1}`);
   return (
     <div className="absolute bottom-full left-0 z-30 mb-2 w-full rounded-[18px] bg-[#1f1d1b] p-3 shadow-2xl ring-1 ring-white/10">
@@ -245,6 +248,13 @@ function VoiceSettings({ onClose }: { onClose: () => void }) {
         Kulaklık / hoparlör
         <select value={selected.output} onChange={(event) => { const next = { ...selected, output: event.target.value }; setSelected(next); void setDevices({ output: event.target.value }); }} className="mt-1 h-9 w-full rounded-[10px] bg-black/40 px-2 text-[12.5px] text-ink outline-none ring-1 ring-white/10">
           {outputs.map((item, index) => <option key={item.deviceId} value={item.deviceId}>{label(item, index)}</option>)}
+        </select>
+      </label>
+      <label className="mb-2 block text-[11.5px] text-ink-4">
+        Kamera
+        <select value={selected.camera} onChange={(event) => { const next = { ...selected, camera: event.target.value }; setSelected(next); void switchCamera(event.target.value); }} className="mt-1 h-9 w-full rounded-[10px] bg-black/40 px-2 text-[12.5px] text-ink outline-none ring-1 ring-white/10">
+          <option value="default">Varsayılan</option>
+          {cameras.map((item, index) => <option key={item.deviceId} value={item.deviceId}>{item.label || `Kamera ${index + 1}`}</option>)}
         </select>
       </label>
       <p className="mb-1 mt-3 text-[11.5px] text-ink-4">Ekran paylaşım kalitesi</p>
@@ -320,7 +330,7 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
   const [theater, setTheater] = useState<string | null>(null);
   const [tuning, setTuning] = useState<string | null>(null);
   const sharing = joined ? voice.peers.filter((peer) => peer.hasScreen) : [];
-  const visible = sharing.filter((peer) => !hidden.has(peer.id));
+  const visible = sharing.filter((peer) => !hidden.has(peer.id) && (!peer.me || focus === peer.id));
   const featured = visible.find((peer) => peer.id === focus) ?? visible[0] ?? null;
   const theaterPeer = theater ? sharing.find((peer) => peer.id === theater) ?? null : null;
 
@@ -384,9 +394,9 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
                 event.preventDefault();
                 setTuning(tuning === peer.id ? null : peer.id);
               }}
-              className={cn("relative flex flex-col items-center justify-center gap-2.5 overflow-hidden rounded-[22px] bg-white/[0.06] ring-2 transition", featured ? "py-4" : "aspect-[4/3]", peer.speaking ? "ring-ok" : "ring-transparent", peer.hasScreen && "cursor-pointer")}
+              className={cn("relative flex flex-col items-center justify-center gap-2.5 overflow-hidden rounded-[22px] bg-white/[0.06] ring-2 transition", featured ? (peer.hasCamera ? "aspect-video" : "py-4") : "aspect-[4/3]", peer.speaking ? "ring-ok" : "ring-transparent", peer.hasScreen && "cursor-pointer")}
             >
-              {peer.hasCamera && !featured ? <CameraView peerId={peer.id} mirror={peer.me} /> : <Avatar name={peer.name} src={peer.avatarUrl} size={featured ? 44 : 72} />}
+              {peer.hasCamera ? <CameraView peerId={peer.id} mirror={peer.me} /> : <Avatar name={peer.name} src={peer.avatarUrl} size={featured ? 44 : 72} />}
               {joined && !peer.me && (
                 <button onClick={(event) => { event.stopPropagation(); setTuning(tuning === peer.id ? null : peer.id); }} className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-ink-2 hover:text-ink" aria-label="Ses düzeyi">
                   <Volume2 className="size-3.5" />
@@ -402,11 +412,11 @@ function VoiceStage({ channel }: { channel: ChatChannel }) {
                   <button onClick={() => setPeerVolume(peer.userId, (voice.volumes[peer.userId] ?? 100) === 0 ? 100 : 0)} className="mt-1.5 text-[11.5px] text-accent-2 hover:underline">{(voice.volumes[peer.userId] ?? 100) === 0 ? "Sesini aç" : "Benim için sustur"}</button>
                 </div>
               )}
-              <span className="relative flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
+              <span className={cn("relative flex items-center gap-1.5 text-[13.5px] font-medium text-ink", peer.hasCamera && "mt-auto rounded-full bg-black/55 px-2.5 py-0.5 text-white")}>
                 {peer.name}
                 {peer.me && <span className="text-[11px] text-ink-4">(sen)</span>}
               </span>
-              <span className="relative flex items-center gap-1.5 text-ink-3">
+              <span className={cn("relative flex items-center gap-1.5 text-ink-3", peer.hasCamera && "mb-2 rounded-full bg-black/55 px-2 py-0.5")}>
                 {peer.hasScreen && <MonitorUp className="size-3.5 text-accent-2" />}
                 {peer.deafened ? <HeadphoneOff className="size-3.5 text-bad" /> : peer.muted ? <MicOff className="size-3.5 text-bad" /> : <Mic className="size-3.5" />}
                 {joined && !peer.me && (voice.volumes[peer.userId] ?? 100) === 0 && <Volume2 className="size-3.5 text-bad" />}
@@ -513,7 +523,7 @@ function ChannelEditor({ target, onClose, onDeleted }: { target: ChatChannel | "
   };
 
   const remove = async () => {
-    if (creating || !window.confirm(`#${target.name} kanalı ve tüm mesajları silinsin mi?`)) return;
+    if (creating || !(await ask({ title: `#${target.name} silinsin mi?`, body: "Kanal ve içindeki tüm mesajlar kalıcı olarak silinir.", action: "Sil", danger: true }))) return;
     setBusy(true);
     const result = await voiceApi.deleteChannel(target.id);
     setBusy(false);

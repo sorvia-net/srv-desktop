@@ -8,6 +8,7 @@ import { relative } from "@/data/format";
 import { invalidate, useQuery } from "@/data/query";
 import { Avatar, Button, cn, Empty, ErrorNote, IconButton, Pill, Segmented, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "soft" }> = {
   ACTIVE: { label: "Aktif", tone: "ok" },
@@ -88,7 +89,7 @@ function UserPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const data = user.data;
 
   const update = async (patch: { role?: string; status?: string }, confirm?: string) => {
-    if (confirm && !window.confirm(confirm)) return;
+    if (confirm && !(await ask({ title: confirm, action: "Onayla", danger: true }))) return;
     setBusy(true);
     const result = await adminApi.updateUser(id, patch);
     setBusy(false);

@@ -53,6 +53,7 @@ app.enableSandbox();
 
 let win: BrowserWindow | null = null;
 const extras = new Map<number, BrowserWindow>();
+const openByWindow = new Map<number, string[]>();
 let tray: Tray | null = null;
 let quitting = false;
 let announcedUpdate: string | null = null;
@@ -570,6 +571,31 @@ function registerIpc() {
   });
   ipcMain.on("window:close", (event) => {
     if (trusted(event)) senderWindow(event)?.close();
+  });
+  ipcMain.on("system:openApps", (event, list) => {
+    if (!trusted(event) || !Array.isArray(list)) return;
+    openByWindow.set(event.sender.id, list.filter((item): item is string => typeof item === "string").slice(0, 40));
+    event.sender.once("destroyed", () => openByWindow.delete(event.sender.id));
+  });
+  ipcMain.handle("system:claimApp", (event, id, params) => {
+    if (!trusted(event) || typeof id !== "string") return true;
+    if (id.startsWith("app-") && win && !win.isDestroyed() && event.sender !== win.webContents) {
+      win.webContents.send("system:activateApp", { id, params: params ?? null });
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      return false;
+    }
+    for (const target of [win, ...extras.values()]) {
+      if (!target || target.isDestroyed() || target.webContents === event.sender) continue;
+      if (!(openByWindow.get(target.webContents.id) ?? []).includes(id)) continue;
+      target.webContents.send("system:activateApp", { id, params: params ?? null });
+      if (target.isMinimized()) target.restore();
+      target.show();
+      target.focus();
+      return false;
+    }
+    return true;
   });
   ipcMain.on("system:lockState", (event, locked) => {
     if (!trusted(event) || typeof locked !== "boolean") return;

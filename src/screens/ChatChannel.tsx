@@ -9,6 +9,7 @@ import { bytes as formatBytes, dayKey, fullDay, time } from "@/data/format";
 import { invalidate, setQueryData, useQuery } from "@/data/query";
 import { Avatar, Button, cn, Empty, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 const QUICK = ["👍", "❤️", "😂", "🔥", "🎉", "👀"];
 const EMOJI_GROUPS: { title: string; items: string[] }[] = [
@@ -158,7 +159,7 @@ export function ChannelView({ channel }: { channel: ChatChannel }) {
   };
 
   const remove = async (message: ChatMessage) => {
-    if (!window.confirm("Mesaj silinsin mi?")) return;
+    if (!(await ask({ title: "Mesaj silinsin mi?", body: "Bu mesaj herkes için silinir ve geri alınamaz.", action: "Sil", danger: true }))) return;
     const result = await api.deleteMessage(message.id);
     if (!result.ok) return session.toast(result.message, "bad");
     setQueryData<ChatMessage[]>(key, (list) => (list ?? []).filter((item) => item.id !== message.id));

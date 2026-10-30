@@ -18,7 +18,7 @@ type OsValue = {
   locked: boolean;
   folder: string | null;
   editing: boolean;
-  openApp: (id: ModuleId, params?: Params, from?: DOMRect | null) => void;
+  openApp: (id: ModuleId, params?: Params, from?: DOMRect | null, local?: boolean) => void;
   goHome: () => void;
   closeApp: (id: ModuleId) => void;
   setSwitcher: (value: boolean) => void;
@@ -36,6 +36,8 @@ const MAX_OPEN = 8;
 export function OsProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState<ModuleId | null>(null);
   const [openApps, setOpenApps] = useState<ModuleId[]>([]);
+  const openRef = useRef<ModuleId[]>([]);
+  openRef.current = openApps;
   const [params, setParams] = useState<Partial<Record<ModuleId, Params>>>({});
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const [snapshots, setSnapshots] = useState<Partial<Record<ModuleId, string>>>({});
@@ -55,8 +57,9 @@ export function OsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openApp = useCallback(
-    (id: ModuleId, next?: Params, from?: DOMRect | null) => {
+    (id: ModuleId, next?: Params, from?: DOMRect | null, local = false) => {
       void (async () => {
+        if (!local && id !== "home" && !openRef.current.includes(id) && !(await bridge.system.claimApp(id, (next as Record<string, string> | undefined) ?? null))) return;
         if (activeRef.current && activeRef.current !== id) await remember();
         if (from) setOrigin({ x: from.left + from.width / 2, y: from.top + from.height / 2 });
         if (next !== undefined) setParams((map) => ({ ...map, [id]: next }));

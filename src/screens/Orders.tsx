@@ -8,6 +8,7 @@ import { relative } from "@/data/format";
 import { invalidate, useQuery } from "@/data/query";
 import { Button, cn, Empty, ErrorNote, IconButton, Pill, Segmented, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 export const ORDER_STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "soft" | "info" }> = {
   PENDING: { label: "Bekliyor", tone: "warn" },
@@ -108,7 +109,7 @@ function OrderPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const data = order.data;
 
   const act = async (action: "mark-paid" | "cancel" | "refund", question: string) => {
-    if (!window.confirm(question)) return;
+    if (!(await ask({ title: question, action: "Onayla", danger: action !== "mark-paid" }))) return;
     setBusy(true);
     const result = await adminApi.orderAction(id, action);
     setBusy(false);

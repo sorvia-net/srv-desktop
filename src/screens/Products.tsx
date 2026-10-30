@@ -8,6 +8,7 @@ import { relative } from "@/data/format";
 import { invalidate, useQuery } from "@/data/query";
 import { Button, cn, Empty, ErrorNote, IconButton, Pill, Segmented, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "soft" | "info" }> = {
   PUBLISHED: { label: "Yayında", tone: "ok" },
@@ -150,7 +151,7 @@ function ProductPanel({ id, onClose }: { id: string; onClose: () => void }) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.status === "PUBLISHED" ? (
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => window.confirm("Ürün sitede gizlensin mi?") && void update({ status: "HIDDEN" })}><EyeOff className="size-4" /> Gizle</Button>
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => void ask({ title: "Ürün sitede gizlensin mi?", body: "Müşteriler ürünü göremez; istediğin an yeniden yayınlayabilirsin.", action: "Gizle", danger: true }).then((yes) => void (yes && update({ status: "HIDDEN" })))}><EyeOff className="size-4" /> Gizle</Button>
                 ) : (
                   <Button size="sm" variant="accent" disabled={busy} onClick={() => void update({ status: "PUBLISHED" })}><Eye className="size-4" /> Yayınla</Button>
                 )}

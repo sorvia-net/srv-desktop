@@ -10,6 +10,7 @@ import { invalidate, useQuery } from "@/data/query";
 import { clearFinishedTransfers, onTransferDone, useTransfers } from "@/data/transfers";
 import { Button, cn, Empty, ErrorNote, IconButton, Progress, Segmented, Skeleton } from "@/design/ui";
 import { useSession } from "@/shell/context";
+import { ask, askText } from "@/shell/ask";
 
 type Tab = "overview" | "drive" | "local";
 
@@ -141,15 +142,15 @@ function Drive() {
   };
 
   const newFolder = async () => {
-    const name = window.prompt("Klasör adı");
+    const name = await askText({ title: "Yeni klasör", placeholder: "Klasör adı", action: "Oluştur" });
     if (!name?.trim()) return;
     const result = await filesApi.createFolder(folderId, name.trim());
     if (!result.ok) return session.toast(result.message, "bad");
     invalidate("drive:");
   };
 
-  const rename = (kind: "file" | "folder", id: string, current: string) => {
-    const name = window.prompt("Yeni ad", current);
+  const rename = async (kind: "file" | "folder", id: string, current: string) => {
+    const name = await askText({ title: "Yeniden adlandır", value: current, action: "Kaydet" });
     if (name?.trim() && name.trim() !== current) void act({ action: "rename", kind, id, name: name.trim() }, "Yeniden adlandırıldı");
   };
 
@@ -213,7 +214,7 @@ function Drive() {
             </>
           )}
           {effective === "trash" && data && data.trash.length > 0 && (
-            <Button variant="ghost" className="text-bad" onClick={() => window.confirm("Çöp kutusu kalıcı olarak boşaltılsın mı?") && void act({ action: "empty-trash" }, "Çöp kutusu boşaltıldı")}>Boşalt</Button>
+            <Button variant="ghost" className="text-bad" onClick={() => void ask({ title: "Çöp kutusu boşaltılsın mı?", body: "İçindeki her şey kalıcı olarak silinir.", action: "Boşalt", danger: true }).then((yes) => { if (yes) void act({ action: "empty-trash" }, "Çöp kutusu boşaltıldı"); })}>Boşalt</Button>
           )}
         </div>
 
@@ -234,7 +235,7 @@ function Drive() {
                       <span className="text-[12px] text-ink-4">{item.origin} · {relative(item.trashedAt)} silindi</span>
                     </span>
                     <IconButton label="Geri yükle" size={34} onClick={() => void act({ action: "restore", ...(item.type === "file" ? { fileIds: [item.id] } : { folderIds: [item.id] }) }, "Geri yüklendi")}><RotateCcw className="size-4" /></IconButton>
-                    <IconButton label="Kalıcı sil" size={34} onClick={() => window.confirm(`${item.name} kalıcı olarak silinsin mi?`) && void act({ action: "purge", ...(item.type === "file" ? { fileIds: [item.id] } : { folderIds: [item.id] }) }, "Kalıcı olarak silindi")}><X className="size-4" /></IconButton>
+                    <IconButton label="Kalıcı sil" size={34} onClick={() => void ask({ title: `${item.name} kalıcı olarak silinsin mi?`, body: "Bu işlem geri alınamaz.", action: "Sil", danger: true }).then((yes) => { if (yes) void act({ action: "purge", ...(item.type === "file" ? { fileIds: [item.id] } : { folderIds: [item.id] }) }, "Kalıcı olarak silindi"); })}><X className="size-4" /></IconButton>
                   </li>
                 ))}
               </ul>

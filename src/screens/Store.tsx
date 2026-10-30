@@ -8,6 +8,7 @@ import { Tile } from "@/os/icons";
 import { available, launchLink, lockReason, type AppDef, type LinkDef } from "@/os/registry";
 import { useOs } from "@/os/state";
 import { useSession } from "@/shell/context";
+import { ask } from "@/shell/ask";
 
 type Item = AppDef | LinkDef;
 
@@ -137,7 +138,7 @@ function Action({ item, compact = false }: { item: Item; compact?: boolean }) {
         Aç
       </Button>
       {!compact && !item.system && (
-        <Button size="sm" variant="ghost" className="text-bad" onClick={() => window.confirm(`${item.title} kaldırılsın mı?`) && void modules.uninstall(item.id)}>
+        <Button size="sm" variant="ghost" className="text-bad" onClick={() => void ask({ title: `${item.title} kaldırılsın mı?`, body: "Mağaza'dan istediğin an yeniden yükleyebilirsin.", action: "Kaldır", danger: true }).then((yes) => { if (yes) void modules.uninstall(item.id); })}>
           Kaldır
         </Button>
       )}

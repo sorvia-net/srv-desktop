@@ -24,6 +24,7 @@ import { Background } from "@/shell/Background";
 import { OverlayProvider, SessionProvider, useOverlay, useSession } from "@/shell/context";
 import { CommandPalette, NotificationCenter, PreviewBanner, QuickTask, Toasts } from "@/shell/overlays";
 import { useWebBadges } from "@/data/feed";
+import { AskHost } from "@/shell/ask";
 
 async function nextMailAccount(session: { toast: (message: string, tone?: "ok" | "bad" | "info") => void }) {
   const accounts = await bridge.mail.accounts();
@@ -179,6 +180,16 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     });
   }, [session.preview]);
   useEffect(() => bridge.system.onUpdateReady(setUpdate), []);
+  useEffect(() => {
+    bridge.system.reportOpenApps(os.openApps);
+  }, [os.openApps]);
+  useEffect(
+    () =>
+      bridge.system.onActivateApp(({ id, params }) => {
+        latest.current.os.openApp(id as ModuleId, params ?? undefined, null, true);
+      }),
+    [],
+  );
   const sharedLock = useRef<boolean | null>(null);
   useEffect(() => {
     if (sharedLock.current === os.locked) return;
@@ -325,6 +336,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
           </button>
         )}
       </div>
+      <AskHost />
     </BadgeContext.Provider>
   );
 }

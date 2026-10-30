@@ -43,7 +43,7 @@ const DEVICE_KEY = "sorvia.voice.devices";
 const QUALITY_KEY = "sorvia.voice.quality";
 
 export type ShareQuality = { height: 720 | 1080 | 1440 | 0; fps: 15 | 30 | 60 };
-export type VoiceDevices = { input: string; output: string };
+export type VoiceDevices = { input: string; output: string; camera: string };
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -62,7 +62,7 @@ function writeJson(key: string, value: unknown) {
 }
 
 export function getDevices(): VoiceDevices {
-  return readJson<VoiceDevices>(DEVICE_KEY, { input: "default", output: "default" });
+  return readJson<VoiceDevices>(DEVICE_KEY, { input: "default", output: "default", camera: "default" });
 }
 
 export function getShareQuality(): ShareQuality {
@@ -195,6 +195,32 @@ export async function setDevices(next: Partial<VoiceDevices>) {
     }
   }
   emit();
+}
+
+function cameraConstraints(): MediaTrackConstraints {
+  const id = getDevices().camera;
+  return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, ...(id && id !== "default" ? { deviceId: { exact: id } } : {}) };
+}
+
+export async function switchCamera(id: string) {
+  writeJson(DEVICE_KEY, { ...getDevices(), camera: id });
+  if (!camera) return emit();
+  try {
+    const fresh = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(), audio: false });
+    const track = fresh.getVideoTracks()[0]!;
+    track.contentHint = "motion";
+    track.onended = () => void stopCamera();
+    for (const remote of remotes.values()) if (remote.cameraSender) await remote.cameraSender.replaceTrack(track).catch(() => undefined);
+    for (const item of camera.getTracks()) {
+      item.onended = null;
+      item.stop();
+      camera.removeTrack(item);
+    }
+    camera.addTrack(track);
+    emit();
+  } catch {
+    set({ error: "Seçilen kamera açılamadı." });
+  }
 }
 
 export async function setShareQuality(next: Partial<ShareQuality>) {
@@ -553,7 +579,7 @@ export async function stopScreenShare() {
 export async function startCamera() {
   if (!view.peerId || camera) return;
   try {
-    camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false });
+    camera = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(), audio: false });
   } catch {
     set({ error: "Kameraya erişilemedi. Windows gizlilik ayarlarında kamera iznini kontrol et." });
     return;
