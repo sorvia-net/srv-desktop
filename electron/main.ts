@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, session, shell, Tray } from "electron";
+import { app, BrowserWindow, components, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, session, shell, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -755,6 +755,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("window-all-closed", () => app.quit());
 
   void app.whenReady().then(async () => {
+    await Promise.race([components.whenReady().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 8000))]);
     registerProtocol();
     hardenSession();
     registerIpc();

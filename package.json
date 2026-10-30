@@ -1,7 +1,7 @@
 {
   "name": "srv-desktop",
   "productName": "Sorvia Desktop",
-  "version": "0.9.9",
+  "version": "0.9.10",
   "private": true,
   "description": "Sorvia çalışanları için Windows masaüstü çalışma alanı",
   "author": "Sorvia",
@@ -57,7 +57,12 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Sorvia Desktop",
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "electronVersion": "44.9.3+wvcus",
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
+    },
+    "afterPack": "./scripts/vmp-sign.cjs"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -69,7 +74,7 @@
     "@types/react-dom": "19.3",
     "@types/sanitize-html": "^2.16.2",
     "@vitejs/plugin-react": "^6.1.2",
-    "electron": "^45.1.0",
+    "electron": "github:castlabs/electron-releases#v44.9.3+wvcus",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "imapflow": "^2.9.1",
