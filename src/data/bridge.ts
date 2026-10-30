@@ -38,7 +38,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.9.10",
+    version: "0.9.11",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
