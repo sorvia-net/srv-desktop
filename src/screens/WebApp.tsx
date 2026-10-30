@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react";
 import { createElement, useEffect, useRef, useState } from "react";
 
-import { bridge } from "@/data/bridge";
+import { bridge, SECONDARY_SCREEN } from "@/data/bridge";
 import { pushFeed, setWebBadge } from "@/data/feed";
 import { playSound } from "@/data/sound";
 import { IconButton } from "@/design/ui";
@@ -33,7 +33,7 @@ export function WebApp({ id }: { id: string }) {
       if (!payload?.title) return;
       const { session: current, os: system } = latest.current;
       pushFeed({ app: item.id, title: payload.title, body: payload.body });
-      if (current.prefs.doNotDisturb) return;
+      if (current.prefs.doNotDisturb || SECONDARY_SCREEN) return;
       playSound(current.prefs.notificationSound);
       if (system.active !== item.id || !document.hasFocus()) current.toast(`${item.title} · ${payload.title}${payload.body ? `: ${payload.body}` : ""}`.slice(0, 160), "info");
     };

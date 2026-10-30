@@ -7,6 +7,7 @@ import { api, type TaskScope } from "@/data/api";
 import { dueLabel, isPast, relative } from "@/data/format";
 import { invalidate, setQueryData, useQuery } from "@/data/query";
 import { Avatar, Button, cn, Empty, ErrorNote, Pill, PRIORITY_LABEL, PRIORITY_TONE, Segmented, Skeleton } from "@/design/ui";
+import { AssigneePicker, canAssign } from "@/shell/AssigneePicker";
 import { useNav, useOverlay, useSession } from "@/shell/context";
 
 const COLUMNS: { status: TaskStatus; title: string; dot: string }[] = [
@@ -38,7 +39,7 @@ export function Tasks() {
   const visible = board ? all.filter((item) => item.board === board) : all;
   const current = all.find((item) => item.id === selected) ?? null;
 
-  const update = async (task: Task, patch: Partial<Task>) => {
+  const update = async (task: Task, patch: Partial<Task> & { assigneeId?: string }) => {
     setQueryData<Task[]>(key, (list) => (list ?? []).map((item) => (item.id === task.id ? { ...item, ...patch } : item)));
     const result = await api.updateTask(task.id, patch);
     if (!result.ok) {
@@ -198,7 +199,8 @@ function ListView({ tasks, onOpen, onToggle }: { tasks: Task[]; onOpen: (id: str
   );
 }
 
-function Detail({ task, onClose, onUpdate }: { task: Task; onClose: () => void; onUpdate: (patch: Partial<Task>) => void }) {
+function Detail({ task, onClose, onUpdate }: { task: Task; onClose: () => void; onUpdate: (patch: Partial<Task> & { assigneeId?: string }) => void }) {
+  const session = useSession();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   useEffect(() => {
@@ -229,6 +231,11 @@ function Detail({ task, onClose, onUpdate }: { task: Task; onClose: () => void; 
         <Field label="Öncelik">
           <Segmented<Priority> size="sm" value={task.priority} onChange={(priority) => onUpdate({ priority })} options={(["LOW", "NORMAL", "HIGH", "URGENT"] as Priority[]).map((value) => ({ value, label: PRIORITY_LABEL[value]! }))} />
         </Field>
+        {canAssign(session.user.role) && (
+          <Field label="Sorumlu">
+            <AssigneePicker value={task.assignee?.id ?? null} onChange={(assigneeId) => assigneeId !== task.assignee?.id && onUpdate({ assigneeId })} />
+          </Field>
+        )}
         <Field label="Son tarih">
           <input type="datetime-local" defaultValue={localDue} onBlur={(event) => onUpdate({ dueAt: event.target.value ? new Date(event.target.value).toISOString() : null })} className="h-9 rounded-full bg-black/30 px-3.5 text-[13px] text-ink outline-none ring-1 ring-white/10 [color-scheme:dark] focus:ring-accent/70" />
         </Field>

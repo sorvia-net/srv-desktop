@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ACCENTS, DENSITIES, ICON_SIZES, SOUNDS, TOAST_POSITIONS, type NotificationSound, UI_STYLES, WALLPAPER_LABEL, type ToastPosition, type Accent, type Density, type IconSize, type UiStyle, type Wallpaper } from "@shared/appearance";
-import type { MailAccountInfo, UpdateStatus } from "@shared/contracts";
+import type { MailAccountInfo, ScreenInfo, UpdateStatus } from "@shared/contracts";
 import { comboFromEvent, resolveShortcuts, SHORTCUT_ACTIONS, type ShortcutAction } from "@shared/shortcuts";
 import { isPreview } from "@/data/api";
 import { bridge } from "@/data/bridge";
@@ -117,6 +117,8 @@ export function Settings() {
           <Toggle label="Kapatınca sistem tepsisinde çalış" checked={prefs.closeToTray} onChange={(value) => session.setPrefs({ closeToTray: value })} />
           <Toggle label="Dış görselleri postalarda her zaman göster" checked={prefs.showRemoteImages} onChange={(value) => session.setPrefs({ showRemoteImages: value })} />
         </Group>
+
+        <Screens />
 
         <SoftwareUpdate />
 
@@ -341,6 +343,29 @@ const UPDATE_TEXT: Record<UpdateStatus["state"], string> = {
   error: "Güncelleme denetlenemedi.",
   unavailable: "Bu sürümde güncelleme yapılamıyor.",
 };
+
+function Screens() {
+  const session = useSession();
+  const [screens, setScreens] = useState<ScreenInfo[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const load = () => void bridge.system.screens().then((list) => alive && setScreens(list));
+    load();
+    const timer = setInterval(load, 3000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+  return (
+    <Group title="Ekranlar" footer={screens.length > 1 ? "Açıkken Sorvia diğer monitörlerinde de tam ekran açılır; her ekranda ayrı uygulama kullanabilirsin. Kilit tüm ekranlarda birlikte çalışır." : "Bilgisayarına ikinci bir monitör bağladığında Sorvia'yı o ekranda da açabilirsin."}>
+      <Toggle label="Diğer ekranlarda da aç" checked={session.prefs.extraScreens} onChange={(value) => session.setPrefs({ extraScreens: value })} icon={<Monitor className="size-4" />} />
+      {screens.map((item) => (
+        <Row key={item.id} label={item.label} value={`${item.width}×${item.height}${item.main ? " · ana pencere" : item.open ? " · Sorvia açık" : ""}${item.primary ? " · birincil" : ""}`} />
+      ))}
+    </Group>
+  );
+}
 
 function SoftwareUpdate() {
   const [status, setStatus] = useState<UpdateStatus>({ state: "idle", version: null, percent: null, message: null });

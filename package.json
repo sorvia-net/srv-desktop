@@ -1,7 +1,7 @@
 {
   "name": "srv-desktop",
   "productName": "Sorvia Desktop",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "description": "Sorvia çalışanları için Windows masaüstü çalışma alanı",
   "author": "Sorvia",

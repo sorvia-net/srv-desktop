@@ -82,6 +82,8 @@ export type CalendarEvent = {
   href: string | null;
 };
 
+export type ScreenInfo = { id: number; label: string; width: number; height: number; primary: boolean; main: boolean; open: boolean };
+
 export type AppNotification = {
   id: string;
   type: string;
@@ -198,6 +200,8 @@ export type Preferences = {
   toastPosition: ToastPosition;
   notificationSound: NotificationSound;
   faceAuto: boolean;
+  widgets: string[] | null;
+  extraScreens: boolean;
 };
 
 export type UpdateStatus = { state: "idle" | "checking" | "latest" | "downloading" | "ready" | "error" | "unavailable"; version: string | null; percent: number | null; message: string | null };
@@ -371,6 +375,9 @@ export type SorviaBridge = {
     passkeySetup(password: string): Promise<ApiResult<true>>;
     unlockedVersion(): Promise<string | null>;
     markUnlocked(): Promise<void>;
+    screens(): Promise<ScreenInfo[]>;
+    shareLock(locked: boolean): void;
+    onLockState(listener: (locked: boolean) => void): () => void;
     screenSources(): Promise<{ id: string; name: string; thumbnail: string; display: boolean }[]>;
     chooseScreen(id: string | null): Promise<void>;
     updateNow(): Promise<UpdateStatus>;

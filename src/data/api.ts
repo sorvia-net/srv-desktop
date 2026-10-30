@@ -49,9 +49,9 @@ export type TicketScope = "mine" | "waiting" | "open" | "all";
 export const api = {
   home: () => get<HomeSummary>("/api/desktop/home", undefined, () => preview.home()),
   tasks: (scope: TaskScope = "mine") => get<Task[]>("/api/desktop/tasks", { scope }, () => preview.tasks()),
-  createTask: (input: { title: string; board: string; priority: Priority; dueAt: string | null; description?: string | null }) =>
+  createTask: (input: { title: string; board: string; priority: Priority; dueAt: string | null; description?: string | null; assigneeId?: string | null }) =>
     send<Task>("POST", "/api/desktop/tasks", input, () => preview.createTask(input)),
-  updateTask: (id: string, patch: Partial<Pick<Task, "status" | "priority" | "title" | "dueAt" | "board" | "description">>) =>
+  updateTask: (id: string, patch: Partial<Pick<Task, "status" | "priority" | "title" | "dueAt" | "board" | "description">> & { assigneeId?: string }) =>
     send<Task>("PATCH", `/api/desktop/tasks/${id}`, patch, () => preview.updateTask(id, patch)),
   tickets: (scope: TicketScope = "mine") => get<TicketSummary[]>("/api/desktop/tickets", { scope }, () => preview.tickets()),
   ticket: (id: string) => get<TicketDetail>(`/api/desktop/tickets/${id}`, undefined, () => preview.ticket(id)),

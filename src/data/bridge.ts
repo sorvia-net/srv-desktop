@@ -26,6 +26,8 @@ const DEFAULT_PREFS: Preferences = {
   toastPosition: "bottom-center",
   notificationSound: "ses1",
   faceAuto: true,
+  widgets: null,
+  extraScreens: false,
 };
 
 function webBridge(): SorviaBridge {
@@ -36,7 +38,7 @@ function webBridge(): SorviaBridge {
   const emit = () => authListeners.forEach((listener) => listener(state));
   return {
     platform: "web",
-    version: "0.9.0",
+    version: "0.9.1",
     window: {
       minimize: () => undefined,
       toggleMaximize: () => undefined,
@@ -118,6 +120,9 @@ function webBridge(): SorviaBridge {
       passkeySetup: async () => unavailable(),
       unlockedVersion: async () => "0.0.0",
       markUnlocked: async () => undefined,
+      screens: async () => [],
+      shareLock: () => undefined,
+      onLockState: () => () => undefined,
       screenSources: async () => [],
       chooseScreen: async () => undefined,
       updateNow: async () => ({ state: "unavailable", version: null, percent: null, message: "Tarayıcı önizlemesinde güncelleme yok." }),
@@ -153,3 +158,4 @@ function webBridge(): SorviaBridge {
 }
 
 export const bridge: SorviaBridge = window.sorvia ?? webBridge();
+export const SECONDARY_SCREEN = new URLSearchParams(location.search).has("ekran");

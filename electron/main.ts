@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, session, shell, Tray } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, session, shell, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -52,6 +52,7 @@ app.setAppUserModelId("net.sorvia.desktop");
 app.enableSandbox();
 
 let win: BrowserWindow | null = null;
+const extras = new Map<number, BrowserWindow>();
 let tray: Tray | null = null;
 let quitting = false;
 let announcedUpdate: string | null = null;
@@ -77,8 +78,75 @@ function image(name: string) {
   return value;
 }
 
+const MAIN_ONLY = new Set(["system:command", "system:openWeb", "window:maximized"]);
+
 function send(channel: string, payload?: unknown) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  if (MAIN_ONLY.has(channel)) return;
+  for (const extra of extras.values()) if (!extra.isDestroyed()) extra.webContents.send(channel, payload);
+}
+
+function appWindowPreferences() {
+  return {
+    preload: join(__dirname, "preload.cjs"),
+    contextIsolation: true,
+    sandbox: true,
+    nodeIntegration: false,
+    webSecurity: true,
+    spellcheck: false,
+    webviewTag: true,
+    devTools: IS_DEV,
+    backgroundThrottling: false,
+    navigateOnDragDrop: false,
+    safeDialogs: true,
+    additionalArguments: [`--sorvia-version=${app.getVersion()}`],
+  };
+}
+
+function syncScreens() {
+  if (!win || win.isDestroyed()) return;
+  const enabled = store.prefs().extraScreens && auth.state.status !== "signedOut";
+  const mainDisplay = screen.getDisplayMatching(win.getBounds()).id;
+  const wanted = enabled ? screen.getAllDisplays().filter((display) => display.id !== mainDisplay) : [];
+  for (const [id, extra] of extras) {
+    if (!wanted.some((display) => display.id === id)) {
+      extras.delete(id);
+      if (!extra.isDestroyed()) extra.destroy();
+    }
+  }
+  for (const display of wanted) {
+    const current = extras.get(display.id);
+    if (current && !current.isDestroyed()) {
+      current.setBounds(display.workArea);
+      continue;
+    }
+    const extra = new BrowserWindow({
+      ...display.workArea,
+      show: false,
+      frame: false,
+      backgroundColor: "#0d0a09",
+      title: "Sorvia Desktop",
+      icon: image("icon.png"),
+      webPreferences: appWindowPreferences(),
+    });
+    extra.setMenu(null);
+    harden(extra.webContents);
+    extra.once("ready-to-show", () => {
+      extra.maximize();
+      extra.showInactive();
+    });
+    extra.on("closed", () => {
+      if (extras.get(display.id) === extra) extras.delete(display.id);
+    });
+    extras.set(display.id, extra);
+    const query = `?ekran=${display.id}`;
+    if (IS_DEV) void extra.loadURL(`${DEV_URL}${query}`);
+    else void extra.loadURL(`${APP_ORIGIN}/index.html${query}`);
+  }
+}
+
+function senderWindow(event: IpcMainEvent | IpcMainInvokeEvent) {
+  return BrowserWindow.fromWebContents(event.sender);
 }
 
 function showWindow() {
@@ -246,6 +314,14 @@ function createWindow() {
   });
   win.on("closed", () => {
     win = null;
+    for (const extra of extras.values()) if (!extra.isDestroyed()) extra.destroy();
+    extras.clear();
+  });
+  win.on("hide", () => {
+    for (const extra of extras.values()) if (!extra.isDestroyed()) extra.hide();
+  });
+  win.on("show", () => {
+    for (const extra of extras.values()) if (!extra.isDestroyed()) extra.showInactive();
   });
   if (IS_DEV) void win.loadURL(DEV_URL);
   else void win.loadURL(`${APP_ORIGIN}/index.html`);
@@ -432,6 +508,7 @@ function applyPrefs(prefs: Preferences, broadcast = false) {
   notifier.restart();
   refreshTray();
   if (broadcast) send("prefs:changed", prefs);
+  syncScreens();
   return prefs;
 }
 
@@ -443,7 +520,8 @@ async function announceUpdate() {
 }
 
 function trusted(event: IpcMainInvokeEvent | IpcMainEvent) {
-  if (!win || event.sender !== win.webContents) return false;
+  const known = (win && event.sender === win.webContents) || [...extras.values()].some((extra) => !extra.isDestroyed() && extra.webContents === event.sender);
+  if (!known) return false;
   return isAppUrl(event.senderFrame?.url ?? "");
 }
 
@@ -461,13 +539,27 @@ function on(channel: string, handler: (...args: unknown[]) => void) {
 }
 
 function registerIpc() {
-  on("window:minimize", () => win?.minimize());
-  on("window:toggleMaximize", () => {
-    if (!win) return;
-    if (win.isMaximized()) win.unmaximize();
-    else win.maximize();
+  ipcMain.on("window:minimize", (event) => {
+    if (trusted(event)) senderWindow(event)?.minimize();
   });
-  on("window:close", () => win?.close());
+  ipcMain.on("window:toggleMaximize", (event) => {
+    if (!trusted(event)) return;
+    const target = senderWindow(event);
+    if (!target) return;
+    if (target.isMaximized()) target.unmaximize();
+    else target.maximize();
+  });
+  ipcMain.on("window:close", (event) => {
+    if (trusted(event)) senderWindow(event)?.close();
+  });
+  ipcMain.on("system:lockState", (event, locked) => {
+    if (!trusted(event) || typeof locked !== "boolean") return;
+    for (const target of [win, ...extras.values()]) if (target && !target.isDestroyed() && target.webContents !== event.sender) target.webContents.send("system:lockState", locked);
+  });
+  handle("system:screens", () => {
+    const mainDisplay = win ? screen.getDisplayMatching(win.getBounds()).id : null;
+    return screen.getAllDisplays().map((display, index) => ({ id: display.id, label: display.label || `Ekran ${index + 1}`, width: display.size.width, height: display.size.height, primary: display.id === screen.getPrimaryDisplay().id, main: display.id === mainDisplay, open: extras.has(display.id) }));
+  });
   handle("window:isMaximized", () => win?.isMaximized() ?? false);
   handle("window:capture", async () => {
     if (!win || win.isMinimized()) return null;
@@ -619,6 +711,7 @@ if (!app.requestSingleInstanceLock()) {
 
     auth.onChange((state) => {
       send("auth:changed", state);
+      syncScreens();
       refreshTray();
     });
     auth.onSignedIn(() => {
@@ -676,6 +769,10 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     createTray();
     applyPrefs(store.prefs());
+    win?.once("ready-to-show", () => setTimeout(syncScreens, 1500));
+    screen.on("display-added", syncScreens);
+    screen.on("display-removed", syncScreens);
+    screen.on("display-metrics-changed", syncScreens);
 
     powerMonitor.on("resume", () => {
       void auth.refresh();

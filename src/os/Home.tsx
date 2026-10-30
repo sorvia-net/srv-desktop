@@ -1,128 +1,26 @@
 import { ICON_SIZES } from "@shared/appearance";
-import { HardDrive, ListChecks, Mail, Minus, RotateCcw } from "lucide-react";
+import { Minus, RotateCcw } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 
-import type { HomeLayout, HomeSummary, StorageOverview } from "@shared/contracts";
-import { api, filesApi } from "@/data/api";
-import { bytes, dueLabel, time } from "@/data/format";
-import { useQuery } from "@/data/query";
+import type { HomeLayout } from "@shared/contracts";
 import { cn } from "@/design/ui";
 import { useSession } from "@/shell/context";
 
+import { BadgeContext } from "./badges";
 import { ConfirmDialog, type ConfirmState } from "./Confirm";
 import { Badge, ItemTile, Tile } from "./icons";
 import { useModules } from "./modules";
-import { appById, DEFAULT_LAYOUT, folderItems, itemBadge, itemById, launchLink, resolveLayout, type HomeItem } from "./registry";
+import { DEFAULT_LAYOUT, folderItems, itemBadge, itemById, launchLink, resolveLayout, type HomeItem } from "./registry";
 import { useOs } from "./state";
+import { Widgets } from "./Widgets";
 
-const WEEKDAY = new Intl.DateTimeFormat("tr-TR", { weekday: "long", timeZone: "Europe/Istanbul" });
-const DAY = new Intl.DateTimeFormat("tr-TR", { day: "numeric", timeZone: "Europe/Istanbul" });
-const MONTH = new Intl.DateTimeFormat("tr-TR", { month: "long", timeZone: "Europe/Istanbul" });
 
 type Drag = { id: string; from: "grid" | "dock" } | null;
 
-export const BadgeContext = createContext<Partial<Record<string, number>>>({});
+export { BadgeContext } from "./badges";
 
 const UninstallContext = createContext<(item: HomeItem) => void>(() => undefined);
-
-function Widget({ children, onClick, className }: { children: ReactNode; onClick: () => void; className?: string }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      className={cn("focus-ring block w-full rounded-[28px] border border-white/15 bg-white/[0.12] p-4 text-left shadow-[0_18px_40px_-18px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-2xl", className)}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
-function Widgets() {
-  const os = useOs();
-  const { installed } = useModules();
-  const home = useQuery<HomeSummary>("home", () => api.home(), { refreshMs: 60_000 });
-  const storage = useQuery<StorageOverview>("storage:overview", () => filesApi.overview(), { refreshMs: 300_000 });
-  const data = home.data;
-  const now = new Date();
-  const agenda = (data?.agenda ?? []).slice(0, 3);
-  const tasks = (data?.tasks ?? []).slice(0, 3);
-  const disk = storage.data?.disk;
-  const used = disk ? disk.total - disk.free : (storage.data?.categories ?? []).reduce((sum, item) => sum + item.bytes, 0);
-  const ratio = disk ? used / disk.total : 0;
-  const open = (id: "calendar" | "tasks" | "tickets" | "mail" | "storage" | "store") => os.openApp(installed.has(id) ? id : "store", installed.has(id) ? undefined : { module: id });
-
-  return (
-    <aside className="hidden w-[330px] shrink-0 flex-col gap-4 xl:flex">
-      <Widget onClick={() => open("calendar")}>
-        <div className="flex gap-4">
-          <div className="w-[92px] shrink-0">
-            <p className="text-[12px] font-semibold uppercase tracking-wide text-[#ff6b5e]">{WEEKDAY.format(now)}</p>
-            <p className="tabular text-[52px] font-light leading-none tracking-[-0.04em] text-white">{DAY.format(now)}</p>
-            <p className="mt-1 text-[12px] capitalize text-white/70">{MONTH.format(now)}</p>
-          </div>
-          <div className="min-w-0 flex-1 space-y-2 border-l border-white/15 pl-4">
-            {agenda.length === 0 && <p className="pt-2 text-[12.5px] text-white/60">Bugün için plan yok.</p>}
-            {agenda.map((item) => (
-              <div key={item.id} className="min-w-0">
-                <p className="tabular text-[11px] font-semibold text-[#ffb47a]">{item.allDay ? "Gün boyu" : time(item.startsAt)}</p>
-                <p className="truncate text-[13px] font-medium text-white">{item.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Widget>
-
-      <Widget onClick={() => open("tasks")}>
-        <div className="mb-3 flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-full bg-[#f7b32b] text-white"><ListChecks className="size-4" /></span>
-          <span className="text-[13px] font-semibold text-white">Görevler</span>
-          <span className="tabular ml-auto text-[26px] font-semibold text-white">{data?.counts.openTasks ?? "–"}</span>
-        </div>
-        <div className="space-y-2">
-          {tasks.length === 0 && <p className="text-[12.5px] text-white/60">Açık görevin yok.</p>}
-          {tasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-2.5">
-              <span className={cn("size-3.5 shrink-0 rounded-full border-2", task.priority === "URGENT" ? "border-[#ff453a]" : task.priority === "HIGH" ? "border-[#ffb340]" : "border-white/50")} />
-              <span className="min-w-0 flex-1 truncate text-[13px] text-white">{task.title}</span>
-              {task.dueAt && <span className="shrink-0 text-[11px] text-white/60">{dueLabel(task.dueAt)}</span>}
-            </div>
-          ))}
-        </div>
-      </Widget>
-
-      <div className="grid grid-cols-2 gap-4">
-        {installed.has("tickets") ? (
-          <Widget onClick={() => open("tickets")} className="aspect-square">
-            <Tile item={appById("tickets")} size={30} className="shadow-none" />
-            <p className="tabular mt-3 text-[34px] font-semibold leading-none text-white">{data?.counts.waitingTickets ?? "–"}</p>
-            <p className="mt-1 text-[12px] text-white/70">talep yanıt bekliyor</p>
-          </Widget>
-        ) : (
-          <Widget onClick={() => open("mail")} className="aspect-square">
-            <span className="flex size-[30px] items-center justify-center rounded-[8px] bg-[#4b93f2] text-white"><Mail className="size-4" /></span>
-            <p className="mt-3 text-[15px] font-semibold text-white">Sorvia Mail</p>
-            <p className="mt-1 text-[12px] text-white/70">{installed.has("mail") ? "Posta kutunu aç" : "Mağazadan yükle"}</p>
-          </Widget>
-        )}
-        <Widget onClick={() => open("storage")} className="aspect-square">
-          <div className="flex items-start justify-between">
-            <span className="flex size-[30px] items-center justify-center rounded-[8px] bg-white text-[#0a84ff]"><HardDrive className="size-4" /></span>
-            {disk && (
-              <svg viewBox="0 0 36 36" className="size-11 -rotate-90">
-                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
-                <circle cx="18" cy="18" r="15" fill="none" stroke="#5ac8fa" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${ratio * 94.2} 94.2`} />
-              </svg>
-            )}
-          </div>
-          <p className="mt-2 text-[15px] font-semibold text-white">{storage.data ? bytes(used) : "–"}</p>
-          <p className="mt-0.5 text-[12px] text-white/70">{disk ? `${bytes(disk.free)} boş` : "kullanılan alan"}</p>
-        </Widget>
-      </div>
-    </aside>
-  );
-}
 
 function HomeIcon({ item, size, label, drag, setDrag, onDropOn, area }: { item: HomeItem; size: number; label: boolean; drag: Drag; setDrag: (value: Drag) => void; onDropOn: (targetId: string, area: "grid" | "dock") => void; area: "grid" | "dock" }) {
   const os = useOs();
@@ -276,7 +174,7 @@ export function HomeScreen({ visible }: { visible: boolean }) {
         onDragEnd={persist}
         onDrop={persist}
         onContextMenu={(event) => {
-          if (event.target === event.currentTarget) {
+          if (!(event.target as HTMLElement).closest("button, a, input, textarea")) {
             event.preventDefault();
             os.setEditing(true);
           }

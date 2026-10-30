@@ -12,6 +12,7 @@ import { relative } from "@/data/format";
 import { invalidate, useQuery } from "@/data/query";
 import { Button, cn, Kbd, PRIORITY_LABEL, Segmented, Spinner } from "@/design/ui";
 
+import { AssigneePicker, canAssign } from "./AssigneePicker";
 import { useNav, useOverlay, useSession } from "./context";
 import { Tile } from "@/os/icons";
 import { useModules, useCatalog } from "@/os/modules";
@@ -290,26 +291,29 @@ export function QuickTask() {
   const [board, setBoard] = useState("Genel");
   const [priority, setPriority] = useState<Priority>("NORMAL");
   const [due, setDue] = useState("");
+  const [assignee, setAssignee] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const lead = canAssign(session.user.role);
 
   useEffect(() => {
     if (overlay.quickTask) {
       setTitle("");
       setDue("");
       setPriority("NORMAL");
+      setAssignee(null);
     }
   }, [overlay.quickTask]);
 
   const save = async () => {
     if (title.trim().length < 2) return;
     setSaving(true);
-    const result = await api.createTask({ title: title.trim(), board, priority, dueAt: due ? new Date(due).toISOString() : null });
+    const result = await api.createTask({ title: title.trim(), board, priority, dueAt: due ? new Date(due).toISOString() : null, assigneeId: assignee });
     setSaving(false);
     if (!result.ok) {
       session.toast(result.message, "bad");
       return;
     }
-    session.toast("Görev eklendi", "ok");
+    session.toast(assignee && assignee !== session.user.id ? "Görev atandı, kişiye bildirim gitti" : "Görev eklendi", "ok");
     invalidate("tasks");
     invalidate("home");
     overlay.close();
@@ -339,10 +343,16 @@ export function QuickTask() {
               </span>
               <div>
                 <h2 className="text-[18px] font-semibold text-ink">Yeni görev</h2>
-                <p className="text-[12.5px] text-ink-3">Sana atanır; panoyu ve önceliği seç.</p>
+                <p className="text-[12.5px] text-ink-3">{lead ? "Kime atanacağını, panoyu ve önceliği seç." : "Sana atanır; panoyu ve önceliği seç."}</p>
               </div>
             </div>
             <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ne yapılacak?" className="h-12 w-full rounded-2xl bg-black/30 px-4 text-[15px] text-ink outline-none ring-1 ring-white/10 placeholder:text-ink-4 focus:ring-accent/70" />
+            {lead && (
+              <>
+                <p className="mb-2 mt-5 text-[12px] font-medium text-ink-3">Sorumlu</p>
+                <AssigneePicker value={assignee} onChange={setAssignee} />
+              </>
+            )}
             <p className="mb-2 mt-5 text-[12px] font-medium text-ink-3">Pano</p>
             <div className="flex flex-wrap gap-2">
               {BOARDS.map((item) => (

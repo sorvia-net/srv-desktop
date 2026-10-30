@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ComponentType } from "react";
 
 import type { ModuleId } from "@shared/contracts";
+import { SECONDARY_SCREEN } from "@/data/bridge";
 import { cn } from "@/design/ui";
 import { Calendar } from "@/screens/Calendar";
 import { Chat } from "@/screens/Chat";
@@ -118,7 +119,7 @@ function DockPeek() {
 function WebAppLayer() {
   const os = useOs();
   const { installed } = useModules();
-  const ids = [...new Set([...[...installed].filter((id) => id.startsWith("app-")), ...os.openApps.filter((id) => id.startsWith("app-"))])].filter((id) => itemById(id));
+  const ids = [...new Set([...(SECONDARY_SCREEN ? [] : [...installed].filter((id) => id.startsWith("app-"))), ...os.openApps.filter((id) => id.startsWith("app-"))])].filter((id) => itemById(id));
   return (
     <>
       {ids.map((id) => {

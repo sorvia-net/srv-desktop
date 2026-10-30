@@ -6,7 +6,7 @@ import { ACCENTS } from "@shared/appearance";
 import { comboFromEvent, resolveShortcuts, type ShortcutAction } from "@shared/shortcuts";
 import type { AppNotification, AuthState, ChatChannel, HomeSummary, MailAccountInfo, MailFolder, ModuleId, Preferences } from "@shared/contracts";
 import { api, mailApi, setPreviewMode } from "@/data/api";
-import { bridge } from "@/data/bridge";
+import { bridge, SECONDARY_SCREEN } from "@/data/bridge";
 import { previewUser } from "@/data/preview";
 import { clearQueries, invalidate, useQuery } from "@/data/query";
 import { playSound } from "@/data/sound";
@@ -157,7 +157,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
   const previousUnread = useRef<number | null>(null);
   useEffect(() => {
     if (!notes.data) return;
-    if (previousUnread.current !== null && unread > previousUnread.current && !session.prefs.doNotDisturb) playSound(session.prefs.notificationSound);
+    if (!SECONDARY_SCREEN && previousUnread.current !== null && unread > previousUnread.current && !session.prefs.doNotDisturb) playSound(session.prefs.notificationSound);
     previousUnread.current = unread;
   }, [unread, notes.data, session.prefs.doNotDisturb, session.prefs.notificationSound]);
 
@@ -165,7 +165,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     () =>
       bridge.mail.onNewMail(() => {
         const prefs = latest.current.session.prefs;
-        if (!prefs.doNotDisturb) playSound(prefs.notificationSound);
+        if (!SECONDARY_SCREEN && !prefs.doNotDisturb) playSound(prefs.notificationSound);
       }),
     [],
   );
@@ -179,6 +179,21 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     });
   }, [session.preview]);
   useEffect(() => bridge.system.onUpdateReady(setUpdate), []);
+  const sharedLock = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (sharedLock.current === os.locked) return;
+    sharedLock.current = os.locked;
+    bridge.system.shareLock(os.locked);
+  }, [os.locked]);
+  useEffect(
+    () =>
+      bridge.system.onLockState((locked) => {
+        sharedLock.current = locked;
+        if (locked) latest.current.os.lock();
+        else latest.current.os.unlock();
+      }),
+    [],
+  );
   useEffect(
     () =>
       bridge.system.onOpenWeb((url) => {
@@ -277,7 +292,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
     events.forEach((name) => window.addEventListener(name, touch, { passive: true }));
     const timer = window.setInterval(() => {
       const system = latest.current.os;
-      if (!system.locked && Date.now() - last > minutes * 60_000) system.lock();
+      if (!SECONDARY_SCREEN && !system.locked && Date.now() - last > minutes * 60_000) system.lock();
     }, 10_000);
     return () => {
       events.forEach((name) => window.removeEventListener(name, touch));

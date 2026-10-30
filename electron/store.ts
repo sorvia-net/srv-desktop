@@ -26,6 +26,8 @@ export const DEFAULT_PREFS: Preferences = {
   toastPosition: "bottom-center",
   notificationSound: "ses1",
   faceAuto: true,
+  widgets: null,
+  extraScreens: false,
 };
 
 type Shape = {
@@ -92,6 +94,8 @@ function sanitizePrefs(input: Record<string, unknown>): Preferences {
   if (isOneOf(TOAST_POSITIONS, input.toastPosition)) prefs.toastPosition = input.toastPosition;
   if (isOneOf(SOUNDS, input.notificationSound)) prefs.notificationSound = input.notificationSound;
   if (typeof input.faceAuto === "boolean") prefs.faceAuto = input.faceAuto;
+  prefs.widgets = Array.isArray(input.widgets) ? [...new Set(input.widgets.filter((item): item is string => typeof item === "string" && /^[a-z][a-z0-9-]{0,30}$/.test(item)))].slice(0, 12) : null;
+  if (typeof input.extraScreens === "boolean") prefs.extraScreens = input.extraScreens;
   if (typeof input.pollSeconds === "number" && Number.isFinite(input.pollSeconds)) prefs.pollSeconds = Math.min(600, Math.max(15, Math.round(input.pollSeconds)));
   if (typeof input.doNotDisturb === "boolean") prefs.doNotDisturb = input.doNotDisturb;
   if (typeof input.autoLockMinutes === "number" && [0, 5, 15, 30, 60].includes(input.autoLockMinutes)) prefs.autoLockMinutes = input.autoLockMinutes;
