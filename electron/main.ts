@@ -760,7 +760,7 @@ function hardenSession() {
       return false;
     }
   };
-  const APP_PERMISSIONS = new Set(["notifications", "media", "clipboard-read", "mediaKeySystem", "storage-access", "top-level-storage-access", "persistent-storage", "speaker-selection", "window-management", "keyboardLock", "pointerLock", "idle-detection"]);
+  const APP_PERMISSIONS = new Set(["notifications", "media", "clipboard-read", "mediaKeySystem", "storage-access", "top-level-storage-access", "persistent-storage", "speaker-selection", "window-management", "keyboardLock", "pointerLock", "idle-detection", "background-sync"]);
   const webAllow = (permission: string, url: string) => {
     const allowed = permission === "fullscreen" || permission === "clipboard-sanitized-write" || (appHost(url) && APP_PERMISSIONS.has(permission));
     if (!allowed && appHost(url)) webAppLog(`[permission denied] ${permission} ${url.slice(0, 80)}`);

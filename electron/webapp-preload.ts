@@ -72,6 +72,25 @@ void webFrame.executeJavaScript(`(() => {
       try { original(action, handler); } catch {}
     };
   }
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    console.error("[sorvia-diag] unhandled", reason && (reason.stack || reason.message || reason.errorCode || JSON.stringify(reason)));
+  });
+  if (location.hostname === "music.apple.com") {
+    const watch = setInterval(() => {
+      const kit = window.MusicKit;
+      const instance = kit && kit.getInstance && kit.getInstance();
+      if (!instance) return;
+      clearInterval(watch);
+      const describe = (value) => { try { return JSON.stringify(value, Object.getOwnPropertyNames(value || {})).slice(0, 800); } catch { return String(value); } };
+      for (const name of ["mediaPlaybackError", "playbackError", "authorizationStatusDidChange", "drmUnsupported", "mediaCanPlay"]) {
+        const key = kit.Events && kit.Events[name];
+        if (key) instance.addEventListener(key, (event) => console.error("[sorvia-diag] MusicKit " + name, describe(event)));
+      }
+      const original = instance.play && instance.play.bind(instance);
+      if (original) instance.play = (...args) => original(...args).catch((error) => { console.error("[sorvia-diag] MusicKit play", describe(error)); throw error; });
+    }, 1000);
+  }
   let last = "";
   setInterval(() => {
     const list = Array.from(document.querySelectorAll("video, audio"));
