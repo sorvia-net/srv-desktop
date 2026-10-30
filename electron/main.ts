@@ -1,7 +1,7 @@
 import { app, BrowserWindow, components, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, session, shell, Tray } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from "electron";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -186,7 +186,28 @@ function webAllowed(url: string) {
   }
 }
 
+function webAppLog(line: string) {
+  try {
+    const dir = join(app.getPath("userData"), "logs");
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, "webapps.log");
+    if (existsSync(file) && statSync(file).size > 1024 * 1024) renameSync(file, `${file}.1`);
+    appendFileSync(file, `${new Date().toISOString()} ${line.replace(/\s+/g, " ").slice(0, 600)}
+`);
+  } catch {
+    return;
+  }
+}
+
 function hardenGuest(contents: WebContents) {
+  if (contents.getType() === "webview") {
+    contents.on("console-message", (event) => {
+      const level = (event as unknown as { level: string }).level;
+      if (level === "error" || level === "warning") webAppLog(`[${level}] ${contents.getURL().slice(0, 80)} ${(event as unknown as { message: string }).message}`);
+    });
+    contents.on("render-process-gone", (_event, details) => webAppLog(`[crash] ${contents.getURL().slice(0, 80)} ${details.reason}`));
+    contents.on("did-fail-load", (_event, code, description, url) => webAppLog(`[load] ${code} ${description} ${url.slice(0, 120)}`));
+  }
   contents.on("will-navigate", (event, url) => {
     if (!webAllowed(url)) {
       event.preventDefault();
@@ -725,6 +746,10 @@ function hardenSession() {
     callback({ video: chosen });
   });
   const web = session.fromPartition("persist:sorvia-web");
+  web.webRequest.onCompleted({ urls: ["https://*.apple.com/*", "https://*.spotify.com/*", "https://*.scdn.co/*"] }, (details) => {
+    if (details.statusCode >= 400) webAppLog(`[http ${details.statusCode}] ${details.method} ${details.url.slice(0, 160)}`);
+  });
+  web.webRequest.onErrorOccurred({ urls: ["https://*.apple.com/*", "https://*.spotify.com/*", "https://*.scdn.co/*"] }, (details) => webAppLog(`[neterr] ${details.error} ${details.url.slice(0, 160)}`));
   web.setUserAgent(web.getUserAgent().replace(/\s(Electron|sorvia-desktop|Sorvia[\w-]*)\/\S+/gi, ""));
   const appHost = (url: string) => {
     try {
