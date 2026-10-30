@@ -8,6 +8,7 @@ import { comboFromEvent, resolveShortcuts, SHORTCUT_ACTIONS, type ShortcutAction
 import { isPreview } from "@/data/api";
 import { bridge } from "@/data/bridge";
 import { invalidate, useQuery } from "@/data/query";
+import { helloAvailable } from "@/data/hello";
 import { playSound } from "@/data/sound";
 import { Avatar, cn, Kbd, Segmented, Spinner, Switch } from "@/design/ui";
 import { useOs } from "@/os/state";
@@ -381,6 +382,10 @@ function SoftwareUpdate() {
 
 function FaceUnlock() {
   const session = useSession();
+  const [hello, setHello] = useState<boolean | null>(null);
+  useEffect(() => {
+    void helloAvailable().then(setHello);
+  }, []);
   const methods = session.user.unlock ?? { password: true, passkey: false };
   const [asking, setAsking] = useState(false);
   const [password, setPassword] = useState("");
@@ -398,7 +403,7 @@ function FaceUnlock() {
     }
     setAsking(false);
     setPassword("");
-    session.toast("Yüz tanıma kuruldu; kilit ekranında kendiliğinden başlayacak", "ok");
+    session.toast("Windows Hello kuruldu; kilit ekranında kendiliğinden başlayacak", "ok");
   };
 
   return (
@@ -406,10 +411,17 @@ function FaceUnlock() {
       <div className="flex items-center gap-3 px-5 py-3.5">
         <ScanFace className="size-4 text-ink-3" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[14px] text-ink">Yüz tanıma (Windows Hello)</span>
-          <span className="block text-[12px] text-ink-3">{methods.passkey ? "Kurulu · kilit ekranı yüzünle açılır" : "Kilidi kameraya bakarak aç"}</span>
+          <span className="block text-[14px] text-ink">Windows Hello (yüz, PIN, parmak izi)</span>
+          <span className="block text-[12px] text-ink-3">
+            {hello === false ? "Bu bilgisayarda Windows Hello açık değil. Önce Windows'ta bir PIN tanımla." : methods.passkey ? "Kurulu · kilit ekranı Windows Hello ile açılır" : "Kilidi yüzün, PIN'in ya da parmak izinle aç"}
+          </span>
         </span>
-        {!asking && (
+        {hello === false && (
+          <button onClick={() => void bridge.system.openBrowser("ms-settings:signinoptions")} className="rounded-full bg-white/[0.08] px-3.5 py-1.5 text-[12.5px] font-medium text-ink hover:bg-white/[0.14]">
+            Windows ayarları
+          </button>
+        )}
+        {hello !== false && !asking && (
           <button disabled={busy} onClick={() => void setup()} className={cn("rounded-full px-3.5 py-1.5 text-[12.5px] font-medium", methods.passkey ? "bg-white/[0.08] text-ink hover:bg-white/[0.14]" : "accent-fill")}>
             {busy ? "Bekleniyor…" : methods.passkey ? "Bu cihazı yeniden ekle" : "Kur"}
           </button>
@@ -428,7 +440,7 @@ function FaceUnlock() {
           <button type="button" onClick={() => setAsking(false)} className="text-[12.5px] text-ink-3 hover:text-ink">Vazgeç</button>
         </form>
       )}
-      {methods.passkey && <Toggle label="Kilit ekranında yüz tanımayı kendiliğinden başlat" checked={session.prefs.faceAuto} onChange={(value) => session.setPrefs({ faceAuto: value })} />}
+      {methods.passkey && <Toggle label="Kilit ekranında Windows Hello'yu kendiliğinden başlat" checked={session.prefs.faceAuto} onChange={(value) => session.setPrefs({ faceAuto: value })} />}
     </>
   );
 }

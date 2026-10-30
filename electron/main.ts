@@ -100,7 +100,7 @@ function openSafe(url: unknown) {
   if (typeof url !== "string") return;
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:") void shell.openExternal(parsed.toString());
+    if (parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:" || parsed.toString() === "ms-settings:signinoptions") void shell.openExternal(parsed.toString());
   } catch {
     return;
   }
@@ -282,9 +282,11 @@ async function passkeyUnlock(kind: "unlock" | "register" = "unlock", password = 
       ? await request<{ code: string; url: string }>("POST", "/api/desktop/unlock/passkey/register", undefined, { password })
       : await request<{ code: string; url: string }>("POST", "/api/desktop/unlock/passkey", undefined, {});
   if (!started.ok) return started;
+  const bounds = win?.getBounds();
   const popup = new BrowserWindow({
-    width: 340,
-    height: 260,
+    width: 300,
+    height: 110,
+    ...(bounds ? { x: Math.round(bounds.x + bounds.width / 2 - 150), y: bounds.y + 56 } : {}),
     parent: win ?? undefined,
     frame: false,
     resizable: false,

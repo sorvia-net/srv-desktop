@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useAnimationControls } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/data/api";
+import { helloAvailable } from "@/data/hello";
 import { bridge } from "@/data/bridge";
 import { Avatar, Spinner } from "@/design/ui";
 import { Background } from "@/shell/Background";
@@ -24,7 +25,12 @@ export function LockScreen() {
   const [busy, setBusy] = useState<"password" | "passkey" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const methods = session.user.unlock ?? { password: true, passkey: false };
-  const free = session.preview || (!methods.password && !methods.passkey);
+  const [hello, setHello] = useState(false);
+  useEffect(() => {
+    void helloAvailable().then(setHello);
+  }, []);
+  const useHello = hello && methods.passkey;
+  const free = session.preview || (!methods.password && !useHello);
 
   const tried = useRef(false);
   useEffect(() => {
@@ -36,13 +42,13 @@ export function LockScreen() {
     }
     const timer = setTimeout(() => {
       input.current?.focus();
-      if (!tried.current && !free && methods.passkey && session.prefs.faceAuto && document.hasFocus()) {
+      if (!tried.current && !free && useHello && session.prefs.faceAuto && document.hasFocus()) {
         tried.current = true;
         void passkey();
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [os.locked]);
+  }, [os.locked, useHello]);
 
   const unlocked = () => {
     void bridge.system.markUnlocked();
@@ -131,10 +137,10 @@ export function LockScreen() {
                 </div>
               ) : null}
             </motion.form>
-            {!free && methods.passkey && (
+            {!free && useHello && (
               <button onClick={() => void passkey()} disabled={busy !== null} className="mt-3 flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-white/85 hover:bg-white/10 hover:text-white">
                 {busy === "passkey" ? <Spinner className="size-3.5" /> : <ScanFace className="size-4" />}
-                {busy === "passkey" ? "Yüzün tanınıyor…" : "Yüz tanıma ile aç"}
+                {busy === "passkey" ? "Windows Hello bekleniyor…" : "Windows Hello ile aç"}
               </button>
             )}
             <p className="mt-3 h-4 text-[12px] text-[#ffd1d1] [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]">{error}</p>
