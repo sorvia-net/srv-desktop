@@ -59,3 +59,34 @@ export function useFeed() {
 export function useWebBadges() {
   return useSyncExternalStore(subscribe, () => badges);
 }
+
+export type NowPlaying = { app: string; title: string; artist: string; artwork: string | null; playing: boolean };
+
+let playing: NowPlaying | null = null;
+const controllers = new Map<string, (action: string) => void>();
+
+export function setNowPlaying(app: string, state: Omit<NowPlaying, "app"> | null) {
+  if (!state) {
+    if (playing?.app === app) {
+      playing = null;
+      emit();
+    }
+    return;
+  }
+  if (playing && playing.app !== app && playing.playing && !state.playing) return;
+  playing = { app, ...state };
+  emit();
+}
+
+export function registerMediaControl(app: string, control: ((action: string) => void) | null) {
+  if (control) controllers.set(app, control);
+  else controllers.delete(app);
+}
+
+export function mediaControl(action: "play" | "pause" | "previoustrack" | "nexttrack") {
+  if (playing) controllers.get(playing.app)?.(action);
+}
+
+export function useNowPlaying() {
+  return useSyncExternalStore(subscribe, () => playing);
+}

@@ -1,11 +1,35 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 
+contextBridge.exposeInMainWorld("__sorviaMedia", (state: unknown) => {
+  if (!state || typeof state !== "object") return ipcRenderer.sendToHost("media", null);
+  const value = state as Record<string, unknown>;
+  ipcRenderer.sendToHost("media", {
+    title: String(value.title ?? "").slice(0, 200),
+    artist: String(value.artist ?? "").slice(0, 200),
+    artwork: typeof value.artwork === "string" && /^https?:/.test(value.artwork) ? value.artwork.slice(0, 2000) : null,
+    playing: Boolean(value.playing),
+  });
+});
+
 contextBridge.exposeInMainWorld("__sorviaNotify", (title: unknown, body: unknown, icon: unknown) => {
   ipcRenderer.sendToHost("notify", {
     title: String(title ?? "").slice(0, 200),
     body: String(body ?? "").slice(0, 500),
     icon: typeof icon === "string" && /^https?:|^data:image\//.test(icon) ? icon.slice(0, 4000) : null,
   });
+});
+
+ipcRenderer.on("media-control", (_event, action: unknown) => {
+  if (typeof action !== "string" || !["play", "pause", "previoustrack", "nexttrack"].includes(action)) return;
+  const name = JSON.stringify(action);
+  void webFrame.executeJavaScript(`(() => {
+    const handler = window.__sorviaMediaHandlers && window.__sorviaMediaHandlers[${name}];
+    if (handler) return void handler({ action: ${name} });
+    const media = document.querySelector("video, audio");
+    if (!media) return;
+    if (${name} === "play") media.play();
+    if (${name} === "pause") media.pause();
+  })();`);
 });
 
 void webFrame.executeJavaScript(`(() => {
@@ -38,4 +62,27 @@ void webFrame.executeJavaScript(`(() => {
       return Promise.resolve();
     };
   }
+
+  const handlers = {};
+  window.__sorviaMediaHandlers = handlers;
+  if (navigator.mediaSession) {
+    const original = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+    navigator.mediaSession.setActionHandler = (action, handler) => {
+      handlers[action] = handler;
+      try { original(action, handler); } catch {}
+    };
+  }
+  let last = "";
+  setInterval(() => {
+    const list = Array.from(document.querySelectorAll("video, audio"));
+    const media = list.find((item) => !item.paused) || list[0];
+    const meta = navigator.mediaSession && navigator.mediaSession.metadata;
+    const playing = Boolean(media && !media.paused && !media.ended);
+    const art = meta && meta.artwork && meta.artwork.length ? meta.artwork[meta.artwork.length - 1].src : null;
+    const state = meta && meta.title ? { title: meta.title, artist: meta.artist, artwork: art, playing } : null;
+    const key = JSON.stringify(state);
+    if (key === last) return;
+    last = key;
+    window.__sorviaMedia(state);
+  }, 1500);
 })();`);

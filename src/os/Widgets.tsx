@@ -13,6 +13,7 @@ import { useSession } from "@/shell/context";
 
 import { BadgeContext } from "./badges";
 import { Tile } from "./icons";
+import { NowPlayingCard } from "./NowPlaying";
 import { useModules } from "./modules";
 import { appById, itemById } from "./registry";
 import { useOs } from "./state";
@@ -222,6 +223,7 @@ export function Widgets() {
   const missing = WIDGETS.filter((widget) => !list.includes(widget.id));
   return (
     <aside className="scroll-area -mx-3 -mt-3 hidden w-[354px] shrink-0 flex-col gap-4 px-3 pb-3 pt-3 xl:flex">
+      <NowPlayingCard compact />
       {groups.map((group) => (group.length === 2 ? <div key={group.join("-")} className="grid grid-cols-2 gap-4">{group.map(render)}</div> : render(group[0]!)))}
       {list.length === 0 && !os.editing && <p className="px-2 text-[12.5px] text-white/60">Widget eklemek için ana ekranda boş bir yere sağ tıkla.</p>}
       {os.editing && (

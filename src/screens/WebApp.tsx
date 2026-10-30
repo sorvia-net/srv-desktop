@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react";
 import { createElement, useEffect, useRef, useState } from "react";
 
 import { bridge, SECONDARY_SCREEN } from "@/data/bridge";
-import { pushFeed, setWebBadge } from "@/data/feed";
+import { pushFeed, registerMediaControl, setNowPlaying, setWebBadge, type NowPlaying } from "@/data/feed";
 import { playSound } from "@/data/sound";
 import { IconButton } from "@/design/ui";
 import { itemById, type LinkDef } from "@/os/registry";
@@ -28,6 +28,10 @@ export function WebApp({ id }: { id: string }) {
     const start = () => setNav((current) => ({ ...current, loading: true }));
     const onMessage = (event: Event) => {
       const message = event as NotifyEvent;
+      if (message.channel === "media") {
+        setNowPlaying(item.id, (message.args[0] as unknown as Omit<NowPlaying, "app"> | null) ?? null);
+        return;
+      }
       if (message.channel !== "notify") return;
       const payload = message.args[0];
       if (!payload?.title) return;
@@ -42,6 +46,7 @@ export function WebApp({ id }: { id: string }) {
       const match = /^\((\d+)\)/.exec(title);
       setWebBadge(item.id, match ? Number(match[1]) : 0);
     };
+    registerMediaControl(item.id, (action) => (view as WebviewTag & { send(channel: string, value: string): void }).send("media-control", action));
     view.addEventListener("did-navigate", update);
     view.addEventListener("did-navigate-in-page", update);
     view.addEventListener("did-stop-loading", update);
@@ -55,6 +60,8 @@ export function WebApp({ id }: { id: string }) {
       view.removeEventListener("did-start-loading", start);
       view.removeEventListener("ipc-message", onMessage);
       view.removeEventListener("page-title-updated", onTitle);
+      registerMediaControl(item.id, null);
+      setNowPlaying(item.id, null);
     };
   }, [item]);
 
