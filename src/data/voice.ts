@@ -5,6 +5,7 @@ import type { VoicePeer } from "@shared/contracts";
 import { voiceApi } from "./api";
 import { bridge } from "./bridge";
 import { invalidate } from "./query";
+import { playEffect } from "./sound";
 
 type Remote = {
   info: VoicePeer;
@@ -218,8 +219,12 @@ async function loop() {
     }
     outbox = [...signals, ...outbox];
   } else {
+    const before = new Set(roster.map((peer) => peer.id));
     roster = result.data.peers;
     const present = new Set(roster.map((peer) => peer.id));
+    const others = (ids: Set<string>) => [...ids].filter((id) => id !== view.peerId);
+    if (others(present).some((id) => !before.has(id))) playEffect("voice-join");
+    else if (others(before).some((id) => !present.has(id))) playEffect("voice-leave");
     for (const id of [...remotes.keys()]) if (!present.has(id)) disconnect(id);
     for (const peer of roster) {
       if (peer.id === view.peerId) continue;
@@ -265,6 +270,7 @@ export async function joinVoice(channelId: string) {
   roster = joined.data.peers;
   localLevel = analyser(local);
   set({ status: "connected", error: null, channelId, channelName: joined.data.channel.name, peerId: joined.data.peerId });
+  playEffect("voice-join");
   for (const peer of roster) if (peer.id !== joined.data.peerId && joined.data.peerId < peer.id) connect(peer);
   meter = setInterval(measure, 200);
   void loop();
@@ -273,6 +279,7 @@ export async function joinVoice(channelId: string) {
 
 export async function leaveVoice(notify = true) {
   const peerId = view.peerId;
+  if (peerId) playEffect("voice-leave");
   if (timer) clearTimeout(timer);
   if (meter) clearInterval(meter);
   timer = null;

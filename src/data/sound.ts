@@ -11,3 +11,9 @@ export function playSound(sound: NotificationSound, force = false) {
   audio.volume = 0.8;
   void audio.play().catch(() => undefined);
 }
+
+export function playEffect(effect: "voice-join" | "voice-leave") {
+  const audio = new Audio(`sounds/${effect}.mp3`);
+  audio.volume = 0.6;
+  void audio.play().catch(() => undefined);
+}
