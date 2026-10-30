@@ -172,7 +172,19 @@ export function AppSwitcher() {
               })}
             </div>
           )}
-          <p className="mt-2 text-center text-[12.5px] text-white/60">Kapatmak için kartı yukarı sürükle · Ctrl+Tab</p>
+          {apps.length > 0 && (
+            <div className="mt-4 flex justify-center gap-2" onClick={(event) => event.stopPropagation()}>
+              {os.active && apps.length > 1 && (
+                <button onClick={() => apps.filter((id) => id !== os.active).forEach((id) => os.closeApp(id))} className="rounded-full bg-white/15 px-4 py-2 text-[13px] font-medium text-white hover:bg-white/25">
+                  Arka plandakileri kapat ({apps.length - 1})
+                </button>
+              )}
+              <button onClick={() => { apps.forEach((id) => os.closeApp(id)); os.setSwitcher(false); }} className="rounded-full bg-white/15 px-4 py-2 text-[13px] font-medium text-white hover:bg-bad/70">
+                Tümünü kapat ({apps.length})
+              </button>
+            </div>
+          )}
+          <p className="mt-3 text-center text-[12.5px] text-white/60">Kapatmak için kartı yukarı sürükle · Ctrl+Tab · Arka plandakileri kapat: Ctrl+Shift+Q</p>
         </motion.div>
       )}
     </AnimatePresence>

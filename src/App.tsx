@@ -218,6 +218,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
       else if (action === "settings") run(() => system.openApp("settings"));
       else if (action === "home") run(() => { layer.close(); system.goHome(); });
       else if (action === "closeApp" && system.active) run(() => { layer.close(); system.closeApp(system.active!); })
+      else if (action === "closeBackground") run(() => { const others = system.openApps.filter((id) => id !== system.active); others.forEach((id) => system.closeApp(id)); if (others.length) current.toast(`${others.length} uygulama kapatıldı`, "ok"); })
       else if (action === "switcher") run(() => system.setSwitcher(!system.switcher));
       else if (action === "lock") run(() => system.lock());
       else if (action === "refresh") run(() => invalidate(""));
