@@ -2,7 +2,7 @@ import { ArrowDownToLine, ChevronRight, Clock, Download, FileText, Folder, Folde
 import { useEffect, useState } from "react";
 import type { DragEvent } from "react";
 
-import type { DriveFile, DriveFolder, DriveMode, DriveView, LocalDownload, LocalUsage, StorageOverview } from "@shared/contracts";
+import type { DriveFile, DriveFolder, DriveMode, DriveSpace, DriveView, LocalDownload, LocalUsage, StorageOverview } from "@shared/contracts";
 import { filesApi, type DriveAction } from "@/data/api";
 import { bridge } from "@/data/bridge";
 import { bytes, relative } from "@/data/format";
@@ -12,7 +12,7 @@ import { Button, cn, Empty, ErrorNote, IconButton, Progress, Segmented, Skeleton
 import { useSession } from "@/shell/context";
 import { ask, askText } from "@/shell/ask";
 
-type Tab = "overview" | "drive" | "local";
+type Tab = "overview" | "mine" | "drive" | "local";
 
 export function Storage() {
   const session = useSession();
@@ -20,6 +20,7 @@ export function Storage() {
   const [tab, setTab] = useState<Tab>("overview");
   const options: { value: Tab; label: string }[] = [
     { value: "overview", label: "Özet" },
+    { value: "mine", label: "Depom" },
     ...(founder ? [{ value: "drive" as const, label: "Kurucu deposu" }] : []),
     { value: "local", label: "Bu bilgisayar" },
   ];
@@ -34,7 +35,8 @@ export function Storage() {
       </header>
       <div className="min-h-0 flex-1">
         {tab === "overview" && <Overview />}
-        {tab === "drive" && founder && <Drive />}
+        {tab === "mine" && <Drive key="me" space="me" />}
+        {tab === "drive" && founder && <Drive key="company" space="company" />}
         {tab === "local" && <Local />}
       </div>
     </div>
@@ -145,7 +147,7 @@ const MODES: { value: DriveMode; label: string; icon: typeof Folder }[] = [
   { value: "trash", label: "Çöp kutusu", icon: Trash2 },
 ];
 
-function Drive() {
+function Drive({ space }: { space: DriveSpace }) {
   const session = useSession();
   const [mode, setMode] = useState<DriveMode>("folder");
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -153,8 +155,8 @@ function Drive() {
   const [search, setSearch] = useState("");
   const [over, setOver] = useState(false);
   const effective: DriveMode = search ? "search" : mode;
-  const key = `drive:${effective}:${folderId ?? ""}:${search}`;
-  const view = useQuery<DriveView>(key, () => filesApi.drive({ mode: effective, folder: folderId ?? undefined, q: search || undefined }));
+  const key = `drive:${space}:${effective}:${folderId ?? ""}:${search}`;
+  const view = useQuery<DriveView>(key, () => filesApi.drive(space, { mode: effective, folder: folderId ?? undefined, q: search || undefined }));
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(q.trim()), 300);
@@ -163,7 +165,7 @@ function Drive() {
   useEffect(() => onTransferDone((transfer) => transfer.target === "drive" && invalidate("drive:")), []);
 
   const act = async (body: DriveAction, success?: string) => {
-    const result = await filesApi.act(body);
+    const result = await filesApi.act(space, body);
     if (!result.ok) return session.toast(result.message, "bad");
     session.toast(result.data.message ?? success ?? "Tamam", "ok");
     invalidate("drive:");
@@ -172,14 +174,14 @@ function Drive() {
   const upload = async (paths: string[]) => {
     if (!paths.length) return;
     if (session.preview) return session.toast("Önizlemede yükleme yapılmaz", "info");
-    const result = await bridge.files.uploadDrive(paths, { folderId: mode === "folder" ? folderId : null });
+    const result = await bridge.files.uploadDrive(paths, { folderId: mode === "folder" ? folderId : null, space });
     session.toast(result.ok ? `${paths.length} dosya yükleme kuyruğunda` : result.message, result.ok ? "ok" : "bad");
   };
 
   const newFolder = async () => {
     const name = await askText({ title: "Yeni klasör", placeholder: "Klasör adı", action: "Oluştur" });
     if (!name?.trim()) return;
-    const result = await filesApi.createFolder(folderId, name.trim());
+    const result = await filesApi.createFolder(space, folderId, name.trim());
     if (!result.ok) return session.toast(result.message, "bad");
     invalidate("drive:");
   };
@@ -300,7 +302,7 @@ function Drive() {
               )}
               <ul className="space-y-1">
                 {data.files.map((file) => (
-                  <FileRow key={file.id} file={file} onAct={act} onRename={() => rename("file", file.id, file.name)} />
+                  <FileRow key={file.id} file={file} space={space} onAct={act} onRename={() => rename("file", file.id, file.name)} />
                 ))}
               </ul>
             </div>
@@ -317,10 +319,10 @@ function Drive() {
   );
 }
 
-function FileRow({ file, onAct, onRename }: { file: DriveFile; onAct: (body: DriveAction, success?: string) => Promise<void>; onRename: () => void }) {
+function FileRow({ file, space, onAct, onRename }: { file: DriveFile; space: DriveSpace; onAct: (body: DriveAction, success?: string) => Promise<void>; onRename: () => void }) {
   const session = useSession();
   const download = async (open: boolean) => {
-    const result = await bridge.files.downloadDrive({ id: file.id, name: file.name, size: file.size }, { ask: !open, open });
+    const result = await bridge.files.downloadDrive({ id: file.id, name: file.name, size: file.size }, { ask: !open, open, space });
     if (!result.ok) session.toast(result.message, "bad");
   };
   return (

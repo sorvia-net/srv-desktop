@@ -1,5 +1,5 @@
 import type {
-  AdminOrderDetail, AdminOrderPage, AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
+  DriveSpace, AdminOrderDetail, AdminOrderPage, AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
   ApiResult, AppNotification, CalendarEvent, ChatAttachment, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
   TicketDetail, TicketSummary,
 } from "@shared/contracts";
@@ -120,13 +120,24 @@ export const galleryApi = {
   remove: (id: string, force: boolean) => send<{ deleted: boolean; places: string[] }>("DELETE", `/api/desktop/media/${id}`, { force }, () => preview.removeMedia(id)),
 };
 
+type DriveParams = { folder?: string; mode?: string; q?: string };
+
 export type DriveAction = { action: "rename" | "move" | "star" | "unstar" | "trash" | "restore" | "purge" | "empty-trash"; fileIds?: string[]; folderIds?: string[]; targetId?: string | null; kind?: "file" | "folder"; id?: string; name?: string };
 
 export const filesApi = {
   overview: () => get<StorageOverview>("/api/desktop/storage", undefined, () => preview.storage()),
-  drive: (params: { folder?: string; mode?: string; q?: string }) => get<DriveView>("/api/desktop/drive", params, () => preview.drive(params)),
-  createFolder: (parentId: string | null, name: string) => send<{ id: string }>("POST", "/api/desktop/drive/folders", { parentId, name }, () => preview.createFolder(parentId, name)),
-  act: (body: DriveAction) => send<{ message: string | null }>("POST", "/api/desktop/drive/items", body, () => preview.driveAction(body)),
+  drive: (space: DriveSpace | DriveParams, params?: DriveParams) => {
+    const [where, query] = typeof space === "string" ? [space, params ?? {}] : [undefined, space];
+    return get<DriveView>("/api/desktop/drive", { ...query, ...(where ? { space: where } : {}) }, () => preview.drive(query));
+  },
+  createFolder: (...args: [DriveSpace, string | null, string] | [string | null, string]) => {
+    const [where, parentId, name] = args.length === 3 ? args : [undefined, args[0], args[1]];
+    return send<{ id: string }>("POST", `/api/desktop/drive/folders${where ? `?space=${where}` : ""}`, { parentId, name }, () => preview.createFolder(parentId, name));
+  },
+  act: (space: DriveSpace | DriveAction, body?: DriveAction) => {
+    const [where, payload] = typeof space === "string" ? [space, body!] : [undefined, space];
+    return send<{ message: string | null }>("POST", `/api/desktop/drive/items${where ? `?space=${where}` : ""}`, payload, () => preview.driveAction(payload));
+  },
 };
 
 export const mailApi = {

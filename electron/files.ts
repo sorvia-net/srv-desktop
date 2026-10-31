@@ -178,6 +178,11 @@ function remember(entry: Omit<LocalDownload, "id" | "savedAt" | "exists">) {
   writeDownloads([{ ...entry, id: randomUUID(), savedAt: new Date().toISOString(), exists: true }, ...readDownloads()]);
 }
 
+function spaceQuery(options: unknown) {
+  const space = (options as { space?: unknown } | null)?.space;
+  return space === "me" || space === "company" ? `?space=${space}` : "";
+}
+
 export const files = {
   init(options: { emit: (transfer: Transfer) => void; window: () => BrowserWindow | null }) {
     emit = options.emit;
@@ -225,12 +230,13 @@ export const files = {
     const list = await checkedPaths(paths, false);
     if (!list) return fail("Dosyalar okunamadı ya da çok büyük.");
     const folderId = typeof (options as { folderId?: unknown })?.folderId === "string" ? (options as { folderId: string }).folderId : null;
+    const space = spaceQuery(options);
     const ids = list.map((file) =>
       enqueue("upload", "drive", basename(file.path), file.size, file.path, async (job) => {
         const info = await stat(file.path);
         const started = await api<{ id: string; chunkSize: number; chunkCount: number; received: number[] }>(
           "POST",
-          "/api/desktop/drive/uploads",
+          `/api/desktop/drive/uploads${space}`,
           { name: basename(file.path), size: file.size, folderId, lastModified: info.mtimeMs, conflict: "version" },
           undefined,
           job.abort.signal,
@@ -241,14 +247,14 @@ export const files = {
             const offset = index * started.chunkSize;
             if (!received.has(index)) {
               const chunk = await readSlice(file.path, offset, Math.min(started.chunkSize, file.size - offset));
-              await api("PUT", `/api/desktop/drive/uploads/${started.id}?part=${index}`, undefined, chunk, job.abort.signal);
+              await api("PUT", `/api/desktop/drive/uploads/${started.id}?part=${index}${space.replace("?", "&")}`, undefined, chunk, job.abort.signal);
             }
             update(job, { done: Math.min(file.size, offset + started.chunkSize) });
           }
-          const result = await api<{ fileId: string }>("POST", `/api/desktop/drive/uploads/${started.id}`, undefined, undefined, job.abort.signal);
+          const result = await api<{ fileId: string }>("POST", `/api/desktop/drive/uploads/${started.id}${space}`, undefined, undefined, job.abort.signal);
           update(job, { resultId: result.fileId });
         } catch (error) {
-          if (job.abort.signal.aborted) await api("DELETE", `/api/desktop/drive/uploads/${started.id}`).catch(() => undefined);
+          if (job.abort.signal.aborted) await api("DELETE", `/api/desktop/drive/uploads/${started.id}${space}`).catch(() => undefined);
           throw error;
         }
       }),
@@ -260,10 +266,11 @@ export const files = {
     const { id, name, size } = (file ?? {}) as { id?: unknown; name?: unknown; size?: unknown };
     if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,60}$/.test(id) || typeof name !== "string") return fail("Dosya geçersiz.");
     const { ask, open: openAfter } = (options ?? {}) as { ask?: boolean; open?: boolean };
+    const space = spaceQuery(options);
     const path = await target(name, Boolean(ask));
     if (!path) return { ok: true, data: null };
     const transferId = enqueue("download", "drive", name, Number(size) || 0, path, async (job) => {
-      await stream(job, new URL(`/api/desktop/drive/files/${id}`, `${SERVER}/`).toString(), path, true);
+      await stream(job, new URL(`/api/desktop/drive/files/${id}${space}`, `${SERVER}/`).toString(), path, true);
       remember({ name: basename(path), path, size: job.transfer.done, source: "drive" });
       if (openAfter) await shell.openPath(path);
     });

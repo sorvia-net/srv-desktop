@@ -296,6 +296,8 @@ export type DriveView = {
 
 export type StorageCategory = { id: string; label: string; bytes: number; count: number | null; color: string };
 
+export type DriveSpace = "me" | "company";
+
 export type StorageNodeInfo = { id: string; name: string; online: boolean; enabled: boolean; total: number; free: number; used: number };
 
 export type StorageOverview = { categories: StorageCategory[]; disk: { free: number; total: number } | null; nodes?: StorageNodeInfo[]; scope: "server" | "limited"; generatedAt: string };
@@ -412,8 +414,8 @@ export type SorviaBridge = {
     pick(options: { multiple: boolean; images: boolean }): Promise<string[]>;
     pathFor(file: File): string;
     uploadMedia(paths: string[], options: { folder: string | null }): Promise<ApiResult<string[]>>;
-    uploadDrive(paths: string[], options: { folderId: string | null }): Promise<ApiResult<string[]>>;
-    downloadDrive(file: { id: string; name: string; size: number }, options: { ask: boolean; open: boolean }): Promise<ApiResult<string | null>>;
+    uploadDrive(paths: string[], options: { folderId: string | null; space?: DriveSpace }): Promise<ApiResult<string[]>>;
+    downloadDrive(file: { id: string; name: string; size: number }, options: { ask: boolean; open: boolean; space?: DriveSpace }): Promise<ApiResult<string | null>>;
     downloadMedia(item: { url: string; fileName: string; size: number }, options: { ask: boolean }): Promise<ApiResult<string | null>>;
     transfers(): Promise<Transfer[]>;
     cancel(id: string): Promise<void>;

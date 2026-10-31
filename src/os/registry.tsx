@@ -85,7 +85,7 @@ const APP_LIST: AppDef[] = [
   {
     kind: "app", id: "storage", title: "Depolama", subtitle: "Dosyalar ve alan", category: "Yönetim", icon: FolderOpen, tile: "#fbfaf8", folder: "folder-admin", version: "1.0", size: "0,9 MB",
     description: "Sunucudaki alanın nereye gittiğini gör, kurucu deposundaki dosyaları yükle, indir ve düzenle.",
-    features: ["Depolama özeti", "Şifreli kurucu deposu", "İndirilenler"], screenshots: ["store/storage.jpg"],
+    features: ["Kişisel şifreli depo", "Kurucu deposu", "Depolama özeti", "İndirilenler"], screenshots: ["store/storage.jpg"],
   },
   {
     kind: "app", id: "users", title: "Kullanıcılar", subtitle: "Hesaplar ve roller", category: "Yönetim", icon: Users, tile: "linear-gradient(160deg,#93c5fd 0%,#3b82f6 55%,#1d4ed8 100%)", folder: "folder-admin", permission: "users.view", version: "1.0", size: "0,6 MB",
