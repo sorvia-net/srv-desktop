@@ -435,6 +435,7 @@ export const preview = {
         { id: "tmp", label: "Geçici dosyalar", bytes: 6_200_000, count: 3, color: "#8e8e93" },
       ],
       disk: { total: 98 * 1024 ** 3, free: 82 * 1024 ** 3 },
+      nodes: [{ id: "n1", name: "50 GB depolama sunucusu", online: true, enabled: true, total: 50 * 1024 ** 3, free: 46 * 1024 ** 3, used: 4 * 1024 ** 3 }],
       scope: "server",
       generatedAt: new Date().toISOString(),
     };

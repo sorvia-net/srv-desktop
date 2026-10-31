@@ -46,13 +46,17 @@ function Overview() {
   const usage = useQuery<LocalUsage>("files:usage", async () => ({ ok: true, data: await bridge.files.usage() }));
   const data = overview.data;
   const total = data?.categories.reduce((sum, item) => sum + item.bytes, 0) ?? 0;
-  const disk = data?.disk;
+  const nodes = (data?.nodes ?? []).filter((node) => node.online);
+  const remoteTotal = nodes.reduce((sum, node) => sum + node.total, 0);
+  const remoteFree = nodes.reduce((sum, node) => sum + node.free, 0);
+  const disk = data?.disk ? { total: data.disk.total + remoteTotal, free: data.disk.free + remoteFree } : null;
+  const localTotal = data?.disk?.total ?? 0;
   return (
     <div className="scroll-area fade-bottom -mr-3 h-full pr-3">
       {overview.error && <ErrorNote message={overview.error} onRetry={overview.refresh} />}
       <section className="rounded-[24px] bg-white/[0.06] p-6">
         <div className="flex items-baseline justify-between gap-4">
-          <p className="text-[15px] font-semibold text-ink">Sunucu</p>
+          <p className="text-[15px] font-semibold text-ink">{remoteTotal > 0 ? "Toplam alan" : "Sunucu"}</p>
           <p className="text-[13px] text-ink-3">{disk ? `${bytes(disk.total - disk.free)} / ${bytes(disk.total)} dolu` : data ? `${bytes(total)} kullanımda` : "Hesaplanıyor…"}</p>
         </div>
         {!data ? (
@@ -63,6 +67,11 @@ function Overview() {
               <span key={item.id} title={`${item.label}: ${bytes(item.bytes)}`} style={{ width: `${disk ? (item.bytes / disk.total) * 100 : total ? (item.bytes / total) * 100 : 0}%`, background: item.color }} />
             ))}
           </div>
+        )}
+        {disk && remoteTotal > 0 && (
+          <p className="mt-2 text-[12px] text-ink-3">
+            Ana sunucu {bytes(localTotal)} + {nodes.length} depolama sunucusu {bytes(remoteTotal)}
+          </p>
         )}
         <div className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
           {data?.categories.map((item) => (
@@ -75,6 +84,32 @@ function Overview() {
         </div>
         {data?.scope === "limited" && <p className="mt-4 text-[12px] text-ink-4">Disk ayrıntıları yalnızca kuruculara gösterilir.</p>}
       </section>
+
+      {(data?.nodes?.length ?? 0) > 0 && (
+        <section className="mt-5 rounded-[24px] bg-white/[0.06] p-6">
+          <p className="text-[15px] font-semibold text-ink">Depolama sunucuları</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {data!.nodes!.map((node) => {
+              const used = Math.max(0, node.total - node.free);
+              return (
+                <div key={node.id} className="rounded-[18px] bg-white/[0.05] p-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`size-2.5 rounded-full ${node.online ? "bg-ok" : "bg-bad"}`} />
+                    <p className="flex-1 truncate text-[14px] font-medium text-ink">{node.name}</p>
+                    <span className="text-[12px] text-ink-3">{!node.online ? "Çevrimdışı" : node.enabled ? "Çevrimiçi" : "Yeni dosya almıyor"}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
+                    <div className="h-full rounded-full" style={{ width: `${node.total ? Math.min(100, (used / node.total) * 100) : 0}%`, background: "#64d2ff" }} />
+                  </div>
+                  <p className="mt-2 text-[12px] tabular-nums text-ink-3">
+                    {bytes(used)} / {bytes(node.total)} dolu · {bytes(node.free)} boş
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="mt-5 rounded-[24px] bg-white/[0.06] p-6">
         <p className="text-[15px] font-semibold text-ink">Bu bilgisayar</p>

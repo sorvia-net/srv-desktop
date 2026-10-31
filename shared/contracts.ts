@@ -296,7 +296,9 @@ export type DriveView = {
 
 export type StorageCategory = { id: string; label: string; bytes: number; count: number | null; color: string };
 
-export type StorageOverview = { categories: StorageCategory[]; disk: { free: number; total: number } | null; scope: "server" | "limited"; generatedAt: string };
+export type StorageNodeInfo = { id: string; name: string; online: boolean; enabled: boolean; total: number; free: number; used: number };
+
+export type StorageOverview = { categories: StorageCategory[]; disk: { free: number; total: number } | null; nodes?: StorageNodeInfo[]; scope: "server" | "limited"; generatedAt: string };
 
 export type TransferStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
