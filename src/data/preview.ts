@@ -140,13 +140,15 @@ let messages: ChatMessage[] = [
   { id: "m5", channelId: "c3", body: "v2.0.5 canlıda; yükleme sınırı düzeltildi.", author: people.mert!, createdAt: ago(DAY), edited: false, pinned: false },
 ];
 
-const mailFolders: MailFolder[] = [
+const mailFolders: MailFolder[] = ([
   { id: "INBOX", path: "INBOX", name: "Gelen kutusu", role: "INBOX", unread: 3, total: 9 },
   { id: "Sent", path: "Sent", name: "Gönderilenler", role: "Sent", unread: 0, total: 4 },
   { id: "Drafts", path: "Drafts", name: "Taslaklar", role: "Drafts", unread: 0, total: 1 },
   { id: "Archive", path: "Archive", name: "Arşiv", role: "Archive", unread: 0, total: 12 },
   { id: "Trash", path: "Trash", name: "Çöp", role: "Trash", unread: 0, total: 2 },
-];
+  { id: "Müşteriler", path: "Müşteriler", name: "Müşteriler", role: null, unread: 1, total: 6 },
+  { id: "Müşteriler/Kuzey", path: "Müşteriler/Kuzey", name: "Kuzey", role: null, unread: 0, total: 3 },
+] as Omit<MailFolder, "delimiter" | "depth" | "parent">[]).map((item) => ({ delimiter: "/", depth: item.path.split("/").length - 1, parent: item.path.includes("/") ? item.path.split("/").slice(0, -1).join("/") : null, ...item }));
 
 const mails: MailMessage[] = [
   mail(9, "Kuzey Yazılım", "destek@kuzey.example", "Lisans doğrulama hatası hakkında", "Merhaba, talebimizle ilgili ek bir log dosyası paylaşmak istiyoruz. Sunucu yeniden başladıktan sonra…", 22 * 60_000, false, true),

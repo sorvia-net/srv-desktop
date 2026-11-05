@@ -16,6 +16,8 @@ import { canEncrypt, store } from "./store";
 import { sync } from "./sync";
 
 const PAGE = 40;
+const MAX_ATTACHMENTS = 25 * 1024 * 1024;
+const FOLDER_NAME = /^[^\\/*%"\u0000-\u001f]{1,80}$/;
 const ROLE: Record<string, MailFolderId> = { "\\Inbox": "INBOX", "\\Sent": "Sent", "\\Drafts": "Drafts", "\\Archive": "Archive", "\\Trash": "Trash", "\\Junk": "Junk" };
 const ROLE_NAME: Record<MailFolderId, string> = { INBOX: "Gelen kutusu", Drafts: "Taslaklar", Sent: "Gönderilenler", Archive: "Arşiv", Junk: "Gereksiz", Trash: "Çöp" };
 const ORDER: MailFolderId[] = ["INBOX", "Drafts", "Sent", "Archive", "Junk", "Trash"];
@@ -132,6 +134,85 @@ async function withMailbox<T>(path: string, readOnly: boolean, work: (connection
   }
 }
 
+function uidSet(value: unknown) {
+  const list = (Array.isArray(value) ? value : [value]).map((item) => Math.floor(Number(item))).filter((item) => Number.isFinite(item) && item > 0);
+  if (!list.length || list.length > 1000) throw new MailFailure("invalid", "İleti seçimi geçersiz.");
+  return [...new Set(list)].join(",");
+}
+
+async function forwardedAttachments(source: MailDraft["forward"]) {
+  if (!source || typeof source.folder !== "string") return [];
+  const uid = Math.floor(Number(source.uid));
+  const key = `${source.folder}:${uid}`;
+  let list = attachmentCache.get(key);
+  if (!list) {
+    list = await withMailbox(source.folder, true, async (connection) => {
+      const message = await connection.fetchOne(String(uid), { uid: true, source: true }, { uid: true });
+      if (!message || !message.source) return [];
+      return (await simpleParser(message.source)).attachments;
+    });
+    remember(key, list);
+  }
+  const wanted = Array.isArray(source.ids) ? new Set(source.ids.map(String)) : null;
+  return list
+    .map((item, index) => ({ item, index }))
+    .filter(({ item, index }) => !item.related && (!wanted || wanted.has(String(index))))
+    .map(({ item, index }) => ({ filename: item.filename ?? `ek-${index + 1}`, content: item.content, contentType: item.contentType }));
+}
+
+async function compose(draft: Partial<MailDraft>, creds: { address: string; name: string }, asDraft: boolean) {
+  const own = (Array.isArray(draft.attachments) ? draft.attachments : []).slice(0, 20).map((item) => ({
+    filename: safeName(String(item.name ?? "dosya")),
+    contentType: String(item.contentType || "application/octet-stream").slice(0, 120),
+    content: Buffer.from(String(item.data ?? ""), "base64"),
+  }));
+  const forwarded = await forwardedAttachments(draft.forward ?? null);
+  const attachments = [...own, ...forwarded];
+  const total = attachments.reduce((sum, item) => sum + item.content.length, 0);
+  if (total > MAX_ATTACHMENTS) throw new MailFailure("invalid", "Ekler toplam 25 MB'ı geçemez.");
+  const to = addresses(draft.to);
+  const cc = addresses(draft.cc);
+  const bcc = addresses(draft.bcc);
+  const domain = creds.address.split("@")[1] ?? "sorvia.net";
+  const composer = new MailComposer({
+    from: { name: creds.name, address: creds.address },
+    to: to.length ? to : undefined,
+    cc: cc.length ? cc : undefined,
+    // Gizli alıcılar gönderilen kopyada görünmez; yalnızca taslakta saklanır.
+    bcc: asDraft && bcc.length ? bcc : undefined,
+    subject: String(draft.subject ?? "").slice(0, 300),
+    text: String(draft.text ?? "").slice(0, 200_000),
+    attachments,
+    messageId: `<${randomUUID()}@${domain}>`,
+    date: new Date(),
+    inReplyTo: draft.inReplyTo || undefined,
+    references: draft.references || draft.inReplyTo || undefined,
+    headers: { "X-Mailer": `Sorvia Desktop ${version()}` },
+  });
+  const node = composer.compile();
+  // Taslakta gizli alıcılar başlıkta kalmalı ki taslak açılınca geri gelsin.
+  if (asDraft) (node as unknown as { keepBcc: boolean }).keepBcc = true;
+  return node.build();
+}
+
+async function dropDraft(uid: unknown) {
+  const id = Math.floor(Number(uid));
+  if (!Number.isFinite(id) || id < 1) return;
+  try {
+    const connection = await client();
+    const drafts = (await folders(connection)).find((item) => item.role === "Drafts");
+    if (!drafts) return;
+    await withMailbox(drafts.path, false, (box) => box.messageDelete(String(id), { uid: true }));
+    folderCache = null;
+  } catch {
+    /* taslak zaten silinmiş olabilir */
+  }
+}
+
+function namespacePrefix(connection: ImapFlow) {
+  return connection.namespace?.prefix ?? "";
+}
+
 async function folders(connection: ImapFlow, fresh = false): Promise<MailFolder[]> {
   if (!fresh && folderCache && Date.now() - folderCache.at < 30_000) return folderCache.folders;
   const list = await connection.list({ statusQuery: { messages: true, unseen: true } });
@@ -139,11 +220,17 @@ async function folders(connection: ImapFlow, fresh = false): Promise<MailFolder[
     .filter((item) => !item.flags.has("\\Noselect") && !item.flags.has("\\NonExistent"))
     .map((item): MailFolder => {
       const role = item.path.toUpperCase() === "INBOX" ? "INBOX" : item.specialUse ? (ROLE[item.specialUse] ?? null) : null;
-      return { id: item.path, path: item.path, name: role ? ROLE_NAME[role] : item.name, role, unread: item.status?.unseen ?? 0, total: item.status?.messages ?? 0 };
+      const delimiter = item.delimiter || "/";
+      // Dovecot gibi sunucularda kişisel klasörler "INBOX." önekinin altındadır; önek derinliğe sayılmaz.
+      const prefix = namespacePrefix(connection);
+      const relative = prefix && item.path.startsWith(prefix) ? item.path.slice(prefix.length) : item.path;
+      const parts = relative.split(delimiter);
+      return { id: item.path, path: item.path, name: role ? ROLE_NAME[role] : item.name, role, unread: item.status?.unseen ?? 0, total: item.status?.messages ?? 0, delimiter, depth: role ? 0 : parts.length - 1, parent: parts.length > 1 ? `${prefix}${parts.slice(0, -1).join(delimiter)}` : null };
     })
     .sort((a, b) => {
       const rank = (folder: MailFolder) => (folder.role ? ORDER.indexOf(folder.role) : ORDER.length);
-      return rank(a) - rank(b) || a.name.localeCompare(b.name, "tr");
+      // Kullanıcı klasörleri yol sırasıyla: alt klasör ebeveyninin hemen altında durur.
+      return rank(a) - rank(b) || (a.role ? 0 : a.path.localeCompare(b.path, "tr"));
     });
   folderCache = { at: Date.now(), folders: result };
   return result;
@@ -435,6 +522,7 @@ export const mail = {
           ...summary(message, String(folder), ""),
           seen: true,
           cc: parsedPeople(parsed.cc),
+          bcc: parsedPeople(parsed.bcc),
           html: html?.html ?? null,
           text: parsed.text ?? null,
           remoteImages: html?.remote ?? false,
@@ -477,27 +565,15 @@ export const mail = {
       if (!creds) throw new MailFailure("not_connected", "Posta hesabı bağlı değil.");
       const to = addresses(draft.to);
       const cc = addresses(draft.cc);
+      const bcc = addresses(draft.bcc);
       if (!to.length) throw new MailFailure("invalid", "En az bir alıcı gir.");
-      const invalid = [...to, ...cc].find((item) => !EMAIL.test(item));
+      const invalid = [...to, ...cc, ...bcc].find((item) => !EMAIL.test(item));
       if (invalid) throw new MailFailure("invalid", `Geçersiz adres: ${invalid}`);
-      if (to.length + cc.length > 50) throw new MailFailure("invalid", "Bir iletiye en fazla 50 alıcı eklenebilir.");
-      const domain = creds.address.split("@")[1] ?? "sorvia.net";
-      const message = {
-        from: { name: creds.name, address: creds.address },
-        to,
-        cc: cc.length ? cc : undefined,
-        subject: String(draft.subject ?? "").slice(0, 300),
-        text: String(draft.text ?? "").slice(0, 200_000),
-        messageId: `<${randomUUID()}@${domain}>`,
-        date: new Date(),
-        inReplyTo: draft.inReplyTo || undefined,
-        references: draft.references || draft.inReplyTo || undefined,
-        headers: { "X-Mailer": `Sorvia Desktop ${version()}` },
-      };
-      const raw = await new MailComposer(message).compile().build();
+      if (to.length + cc.length + bcc.length > 50) throw new MailFailure("invalid", "Bir iletiye en fazla 50 alıcı eklenebilir.");
+      const raw = await compose(draft, creds, false);
       const transport = nodemailer.createTransport({ ...MAIL_HOST.smtp, auth: { user: creds.address, pass: creds.password } });
       try {
-        await transport.sendMail({ envelope: { from: creds.address, to: [...to, ...cc] }, raw });
+        await transport.sendMail({ envelope: { from: creds.address, to: [...to, ...cc, ...bcc] }, raw });
       } finally {
         transport.close();
       }
@@ -509,7 +585,146 @@ export const mail = {
       } catch {
         folderCache = null;
       }
+      await dropDraft(draft.draftUid);
       return true as const;
+    }),
+  /** Taslağı Taslaklar klasörüne yazar; önceki sürümü siler. Ekler de taslakta saklanır. */
+  saveDraft: (input: unknown) =>
+    guard(async () => {
+      const draft = (input ?? {}) as Partial<MailDraft>;
+      const creds = credentials();
+      if (!creds) throw new MailFailure("not_connected", "Posta hesabı bağlı değil.");
+      const connection = await client();
+      const target = (await folders(connection)).find((item) => item.role === "Drafts");
+      if (!target) throw new MailFailure("not_found", "Taslaklar klasörü bulunamadı.");
+      const raw = await compose(draft, creds, true);
+      const appended = await connection.append(target.path, raw, ["\\Seen", "\\Draft"]);
+      await dropDraft(draft.draftUid);
+      folderCache = null;
+      return { uid: appended && typeof appended === "object" && "uid" in appended ? (appended.uid ?? null) : null };
+    }),
+  createFolder: (name: unknown, parent: unknown) =>
+    guard(async () => {
+      const clean = String(name ?? "").trim();
+      if (!FOLDER_NAME.test(clean)) throw new MailFailure("invalid", "Klasör adı geçersiz (1-80 karakter, / \\ * % \" kullanılamaz).");
+      const connection = await client();
+      const list = await folders(connection, true);
+      const base = typeof parent === "string" && parent ? list.find((item) => item.path === parent) : null;
+      if (parent && !base) throw new MailFailure("not_found", "Üst klasör bulunamadı.");
+      const delimiter = base?.delimiter ?? connection.namespace?.delimiter ?? list[0]?.delimiter ?? "/";
+      if (clean.includes(delimiter)) throw new MailFailure("invalid", `Klasör adında “${delimiter}” kullanılamaz.`);
+      const path = base && base.role !== "INBOX" ? `${base.path}${delimiter}${clean}` : `${namespacePrefix(connection)}${clean}`;
+      if (list.some((item) => item.path.toLocaleLowerCase("tr") === path.toLocaleLowerCase("tr"))) throw new MailFailure("invalid", "Bu adla bir klasör zaten var.");
+      await connection.mailboxCreate(path);
+      await connection.mailboxSubscribe(path).catch(() => undefined);
+      return folders(connection, true);
+    }),
+  renameFolder: (path: unknown, name: unknown) =>
+    guard(async () => {
+      const clean = String(name ?? "").trim();
+      if (!FOLDER_NAME.test(clean)) throw new MailFailure("invalid", "Klasör adı geçersiz.");
+      const connection = await client();
+      const current = (await folders(connection, true)).find((item) => item.path === path);
+      if (!current) throw new MailFailure("not_found", "Klasör bulunamadı.");
+      if (current.role) throw new MailFailure("invalid", "Sistem klasörleri yeniden adlandırılamaz.");
+      if (clean.includes(current.delimiter)) throw new MailFailure("invalid", `Klasör adında “${current.delimiter}” kullanılamaz.`);
+      const next = current.parent ? `${current.parent}${current.delimiter}${clean}` : `${namespacePrefix(connection)}${clean}`;
+      if (next !== current.path) await connection.mailboxRename(current.path, next);
+      return folders(connection, true);
+    }),
+  deleteFolder: (path: unknown) =>
+    guard(async () => {
+      const connection = await client();
+      const list = await folders(connection, true);
+      const current = list.find((item) => item.path === path);
+      if (!current) throw new MailFailure("not_found", "Klasör bulunamadı.");
+      if (current.role) throw new MailFailure("invalid", "Sistem klasörleri silinemez.");
+      // İçindeki postalar kaybolmasın: önce Çöp'e taşınır, alt klasörler de aynı şekilde.
+      const trash = list.find((item) => item.role === "Trash");
+      const doomed = list.filter((item) => item.path === current.path || item.path.startsWith(`${current.path}${current.delimiter}`)).sort((a, b) => b.depth - a.depth);
+      for (const item of doomed) {
+        if (trash && item.total > 0) {
+          const lock = await connection.getMailboxLock(item.path);
+          try {
+            await connection.messageMove("1:*", trash.path);
+          } finally {
+            lock.release();
+          }
+        }
+        await connection.mailboxDelete(item.path);
+      }
+      return folders(connection, true);
+    }),
+  emptyFolder: (path: unknown) =>
+    guard(async () => {
+      const connection = await client();
+      const current = (await folders(connection, true)).find((item) => item.path === path);
+      if (!current || (current.role !== "Trash" && current.role !== "Junk")) throw new MailFailure("invalid", "Yalnızca Çöp ve Gereksiz boşaltılabilir.");
+      return withMailbox(current.path, false, async (box) => {
+        if (box.mailbox && box.mailbox.exists > 0) await box.messageDelete("1:*");
+        folderCache = null;
+        return true as const;
+      });
+    }),
+  moveTo: (folder: unknown, uids: unknown, target: unknown) =>
+    guard(async () => {
+      const ids = uidSet(uids);
+      if (typeof target !== "string" || !target) throw new MailFailure("invalid", "Hedef klasör geçersiz.");
+      const destination = (await folders(await client())).find((item) => item.path === target);
+      if (!destination) throw new MailFailure("not_found", "Hedef klasör bulunamadı.");
+      if (destination.path === folder) return true as const;
+      return withMailbox(String(folder), false, async (connection) => {
+        await connection.messageMove(ids, destination.path, { uid: true });
+        folderCache = null;
+        return true as const;
+      });
+    }),
+  flag: (folder: unknown, uids: unknown, flagged: unknown) =>
+    guard(() =>
+      withMailbox(String(folder), false, async (connection) => {
+        const ids = uidSet(uids);
+        if (flagged) await connection.messageFlagsAdd(ids, ["\\Flagged"], { uid: true });
+        else await connection.messageFlagsRemove(ids, ["\\Flagged"], { uid: true });
+        return true as const;
+      }),
+    ),
+  markSeen: (folder: unknown, uids: unknown, seen: unknown) =>
+    guard(() =>
+      withMailbox(String(folder), false, async (connection) => {
+        const ids = uidSet(uids);
+        if (seen) await connection.messageFlagsAdd(ids, ["\\Seen"], { uid: true });
+        else await connection.messageFlagsRemove(ids, ["\\Seen"], { uid: true });
+        folderCache = null;
+        return true as const;
+      }),
+    ),
+  /** Çöp'e taşır; zaten Çöp'teyse kalıcı siler. */
+  remove: (folder: unknown, uids: unknown) =>
+    guard(async () => {
+      const ids = uidSet(uids);
+      const trash = (await folders(await client())).find((item) => item.role === "Trash");
+      return withMailbox(String(folder), false, async (connection) => {
+        if (!trash || trash.path === folder) await connection.messageDelete(ids, { uid: true });
+        else await connection.messageMove(ids, trash.path, { uid: true });
+        folderCache = null;
+        return true as const;
+      });
+    }),
+  /** Bayraklı: Gelen kutusu ve kullanıcı klasörlerindeki bayraklı postalar. */
+  flagged: () =>
+    guard(async () => {
+      const connection = await client();
+      const scope = (await folders(connection)).filter((item) => item.role === "INBOX" || item.role === "Archive" || !item.role);
+      const messages: MailSummary[] = [];
+      for (const item of scope.slice(0, 30)) {
+        const found = await withMailbox(item.path, true, async (box) => {
+          const uids = ((await box.search({ flagged: true }, { uid: true })) || []).slice(-PAGE);
+          return uids.length ? page(box, item.path, uids.join(","), true) : [];
+        });
+        messages.push(...found);
+      }
+      messages.sort((a, b) => b.date.localeCompare(a.date));
+      return { total: messages.length, messages: messages.slice(0, 200) };
     }),
   saveAttachment: (window: BrowserWindow | null, folder: unknown, uid: unknown, attachmentId: unknown) =>
     guard(async () => {

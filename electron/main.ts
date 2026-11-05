@@ -691,6 +691,16 @@ function registerIpc() {
   handle("mail:setSeen", (folder, uid, seen) => mail.setSeen(folder, uid, seen));
   handle("mail:move", (folder, uid, target) => mail.move(folder, uid, target));
   handle("mail:send", (draft) => mail.send(draft));
+  handle("mail:saveDraft", (draft) => mail.saveDraft(draft));
+  handle("mail:createFolder", (name, parent) => mail.createFolder(name, parent));
+  handle("mail:renameFolder", (path, name) => mail.renameFolder(path, name));
+  handle("mail:deleteFolder", (path) => mail.deleteFolder(path));
+  handle("mail:emptyFolder", (path) => mail.emptyFolder(path));
+  handle("mail:moveTo", (folder, uids, target) => mail.moveTo(folder, uids, target));
+  handle("mail:flag", (folder, uids, flagged) => mail.flag(folder, uids, flagged));
+  handle("mail:seen", (folder, uids, seen) => mail.markSeen(folder, uids, seen));
+  handle("mail:remove", (folder, uids) => mail.remove(folder, uids));
+  handle("mail:flagged", () => mail.flagged());
   handle("mail:search", (folder, query) => mail.search(folder, query));
   handle("mail:saveAttachment", (folder, uid, id) => mail.saveAttachment(win, folder, uid, id));
 

@@ -154,4 +154,9 @@ export const mailApi = {
     const message = preview.mailRead(uid);
     return message ? ok(message) : missing("İleti bulunamadı.");
   },
+  flagged: async (): Promise<ApiResult<{ total: number; messages: MailSummary[] }>> => {
+    if (!previewMode) return bridge.mail.flagged();
+    const messages = preview.mailList("INBOX").messages.filter((item) => item.flagged);
+    return ok({ total: messages.length, messages });
+  },
 };

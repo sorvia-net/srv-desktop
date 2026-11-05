@@ -139,7 +139,7 @@ export type HomeSummary = {
 
 export type MailFolderId = "INBOX" | "Sent" | "Drafts" | "Archive" | "Trash" | "Junk";
 
-export type MailFolder = { id: string; path: string; name: string; role: MailFolderId | null; unread: number; total: number };
+export type MailFolder = { id: string; path: string; name: string; role: MailFolderId | null; unread: number; total: number; delimiter: string; depth: number; parent: string | null };
 
 export type MailSummary = {
   uid: number;
@@ -158,6 +158,7 @@ export type MailAttachment = { id: string; filename: string; contentType: string
 
 export type MailMessage = MailSummary & {
   cc: { name: string; address: string }[];
+  bcc?: { name: string; address: string }[];
   html: string | null;
   text: string | null;
   remoteImages: boolean;
@@ -167,7 +168,9 @@ export type MailMessage = MailSummary & {
 
 export type MailAccountInfo = { id: string; active: boolean; address: string; name: string; imapHost: string; smtpHost: string; connected: boolean; lastError: string | null };
 
-export type MailDraft = { to: string; cc?: string; subject: string; text: string; inReplyTo?: string | null; references?: string | null };
+export type MailOutgoingAttachment = { name: string; contentType: string; data: string };
+/** forward: iletilen postanın ekleri sunucudan alınıp yeniden eklenir. draftUid: kaydedilmiş taslak, gönderilince/yeniden kaydedilince silinir. */
+export type MailDraft = { to: string; cc?: string; bcc?: string; subject: string; text: string; inReplyTo?: string | null; references?: string | null; attachments?: MailOutgoingAttachment[]; forward?: { folder: string; uid: number; ids?: string[] } | null; draftUid?: number | null };
 
 export type AuthState =
   | { status: "signedOut"; server: string; error?: string | null }
@@ -364,6 +367,16 @@ export type SorviaBridge = {
     setSeen(folder: string, uid: number, seen: boolean): Promise<ApiResult<true>>;
     move(folder: string, uid: number, target: MailFolderId): Promise<ApiResult<true>>;
     send(draft: MailDraft): Promise<ApiResult<true>>;
+    saveDraft(draft: MailDraft): Promise<ApiResult<{ uid: number | null }>>;
+    createFolder(name: string, parent?: string | null): Promise<ApiResult<MailFolder[]>>;
+    renameFolder(path: string, name: string): Promise<ApiResult<MailFolder[]>>;
+    deleteFolder(path: string): Promise<ApiResult<MailFolder[]>>;
+    emptyFolder(path: string): Promise<ApiResult<true>>;
+    moveTo(folder: string, uids: number[], target: string): Promise<ApiResult<true>>;
+    flag(folder: string, uids: number[], flagged: boolean): Promise<ApiResult<true>>;
+    seen(folder: string, uids: number[], seen: boolean): Promise<ApiResult<true>>;
+    remove(folder: string, uids: number[]): Promise<ApiResult<true>>;
+    flagged(): Promise<ApiResult<{ total: number; messages: MailSummary[] }>>;
     search(folder: string, query: string): Promise<ApiResult<{ total: number; messages: MailSummary[] }>>;
     saveAttachment(folder: string, uid: number, id: string): Promise<ApiResult<string | null>>;
     onNewMail(listener: (count: number) => void): () => void;

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-import type { AuthState, DesktopUser, ModuleId, Preferences } from "@shared/contracts";
+import type { AuthState, DesktopUser, MailDraft, ModuleId, Preferences } from "@shared/contracts";
 
 export type Route = { screen: ModuleId; params?: Record<string, string> };
 
@@ -20,7 +20,8 @@ type OverlayValue = {
   palette: boolean;
   notifications: boolean;
   quickTask: boolean;
-  compose: { to?: string; subject?: string; text?: string; inReplyTo?: string | null } | null;
+  /** forwardFiles: iletilen postanın ekleri (gönderimde sunucudan alınır). */
+  compose: (Partial<MailDraft> & { forwardFiles?: { id: string; filename: string; size: number }[] }) | null;
   open: (overlay: Overlay) => void;
   close: () => void;
   toggle: (overlay: Overlay) => void;
