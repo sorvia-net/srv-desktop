@@ -161,7 +161,7 @@ function Markdown({ text }: { text: string }) {
 
 export function Assistant() {
   const session = useSession();
-  const overview = useQuery<AssistantOverview>("assistant:overview", () => adminApi.assistant(), { refreshMs: 60_000 });
+  const overview = useQuery<AssistantOverview>("assistant:overview", () => adminApi.assistant(), { refreshMs: 30_000 });
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -190,6 +190,15 @@ export function Assistant() {
   useEffect(() => {
     field.current?.focus();
   }, [conversationId]);
+
+  // E-posta takibi sohbete yanıt özeti yazınca açık sohbet kendiliğinden yenilenir.
+  const openStamp = overview.data?.conversations.find((c) => c.id === conversationId)?.updatedAt;
+  const seenStamp = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!openStamp || !conversationId) return;
+    if (seenStamp.current && seenStamp.current !== openStamp && !busy) void openThread(conversationId, true);
+    seenStamp.current = openStamp;
+  }, [openStamp]);
 
   function patchLast(update: (turn: Turn) => Turn) {
     setTurns((list) => list.map((turn, index) => (index === list.length - 1 && turn.role === "assistant" ? update(turn) : turn)));
@@ -253,9 +262,9 @@ export function Assistant() {
     if (streamId.current) void bridge.api.abort(streamId.current);
   }
 
-  async function openThread(id: string) {
+  async function openThread(id: string, silent = false) {
     if (busy) return;
-    setLoadingThread(true);
+    if (!silent) setLoadingThread(true);
     const result = await adminApi.assistantThread(id);
     setLoadingThread(false);
     if (!result.ok) return session.toast(result.message, "bad");

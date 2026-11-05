@@ -8,6 +8,7 @@ export function routeForNotification(item: Pick<AppNotification, "type" | "href"
   if (kind === "meeting") return { screen: "calendar" };
   if (kind === "chat") return { screen: "chat" };
   if (kind === "mail") return { screen: "mail" };
+  if (kind === "assistant") return { screen: "assistant" };
   return { screen: "home" };
 }
 
