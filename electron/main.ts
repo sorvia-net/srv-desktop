@@ -15,6 +15,7 @@ import { installedModules, modules } from "./modules";
 import { createNotifier, toast } from "./notifier";
 import { files } from "./files";
 import { store } from "./store";
+import { sync } from "./sync";
 import { resolveShortcuts, toAccelerator } from "../shared/shortcuts";
 import { checkUpdate } from "./updates";
 import { updater } from "./updater";
@@ -366,7 +367,7 @@ function refreshTray() {
       { label: "Yeni görev", enabled: signedIn, click: () => command("quick-task") },
       { label: "Bildirimler", enabled: signedIn, click: () => command("notifications") },
       { type: "separator" },
-      { label: "Windows bildirimleri", type: "checkbox", checked: prefs.nativeNotifications, click: (item) => applyPrefs(store.setPrefs({ nativeNotifications: item.checked }), true) },
+      { label: "Windows bildirimleri", type: "checkbox", checked: prefs.nativeNotifications, click: (item) => { applyPrefs(store.setPrefs({ nativeNotifications: item.checked }), true); sync.prefsChanged(); } },
       { label: "Windows açılınca başlat", type: "checkbox", checked: prefs.launchAtLogin, enabled: app.isPackaged, click: (item) => applyPrefs(store.setPrefs({ launchAtLogin: item.checked }), true) },
       { type: "separator" },
       {
@@ -499,6 +500,8 @@ async function pickWallpaper() {
   const picture = picked.getSize().width > 2560 ? picked.resize({ width: 2560, quality: "best" }) : picked;
   writeFileSync(wallpaperFile(), picture.toJPEG(86));
   applyPrefs(store.setPrefs({ wallpaper: "custom" }), true);
+  sync.prefsChanged();
+  sync.wallpaperChanged(wallpaperFile());
   return wallpaperImage();
 }
 
@@ -692,7 +695,11 @@ function registerIpc() {
   handle("mail:saveAttachment", (folder, uid, id) => mail.saveAttachment(win, folder, uid, id));
 
   handle("prefs:get", () => store.prefs());
-  handle("prefs:set", (patch) => applyPrefs(store.setPrefs(patch)));
+  handle("prefs:set", (patch) => {
+    const prefs = applyPrefs(store.setPrefs(patch));
+    sync.prefsChanged();
+    return prefs;
+  });
 
   handle("system:openExternal", (url) => openInside(url));
   handle("system:openAppWindow", (url, id) => openAppWindow(url, id));
@@ -819,14 +826,19 @@ if (!app.requestSingleInstanceLock()) {
       syncScreens();
       refreshTray();
     });
+    sync.init({ applyPrefs: (prefs) => applyPrefs(prefs, true), reloadMail: () => mail.reload(), wallpaperFile });
     auth.onSignedIn(() => {
       notifier.start();
       mail.start();
+      sync.start();
       if (win?.isVisible()) showWindow();
     });
     auth.onSignedOut((reason) => {
       notifier.stop();
       store.setLastNotificationAt(null);
+      // Çıkışta yalnız bu cihazdaki kopyalar silinir; hesapta kayıtlı olanlar sonraki girişte geri gelir.
+      if (reason === "logout") sync.reset();
+      else sync.stop();
       void (reason === "logout" ? mail.disconnectAll() : mail.stop());
       setBadge(0);
     });

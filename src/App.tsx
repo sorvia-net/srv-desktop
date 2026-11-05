@@ -61,7 +61,11 @@ export function App() {
     void bridge.auth.state().then(apply);
     void bridge.prefs.get().then(setPrefsState);
     const offAuth = bridge.auth.onChange(apply);
-    const offPrefs = bridge.prefs.onChange(setPrefsState);
+    const offPrefs = bridge.prefs.onChange((next) => {
+      setPrefsState(next);
+      // Eşitleme yeni duvar kâğıdı indirmiş olabilir.
+      window.dispatchEvent(new Event("sorvia:wallpaper"));
+    });
     return () => {
       offAuth();
       offPrefs();

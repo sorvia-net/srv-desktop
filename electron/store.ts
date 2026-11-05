@@ -41,11 +41,15 @@ type Shape = {
   lastNotificationAt: string | null;
   trayHintShown: boolean;
   unlockedVersion: string | null;
+  /** Eşitleme durumu: yerel tercih değişikliği zamanı, son alınan duvar kâğıdı, sunucuyla eşleşmiş posta hesapları. */
+  sync: SyncState;
 };
+
+export type SyncState = { prefsAt: string | null; wallpaperAt: string | null; mailIds: string[]; ready: boolean };
 
 export type MailAccount = { id: string; address: string; name: string };
 
-const EMPTY: Shape = { prefs: DEFAULT_PREFS, user: null, session: null, mail: null, mailAccounts: [], activeMail: null, secrets: {}, lastNotificationAt: null, trayHintShown: false, unlockedVersion: null };
+const EMPTY: Shape = { prefs: DEFAULT_PREFS, user: null, session: null, mail: null, mailAccounts: [], activeMail: null, secrets: {}, lastNotificationAt: null, trayHintShown: false, unlockedVersion: null, sync: { prefsAt: null, wallpaperAt: null, mailIds: [], ready: false } };
 
 let cache: Shape | null = null;
 
@@ -57,7 +61,7 @@ function load(): Shape {
   if (cache) return cache;
   try {
     const parsed = JSON.parse(readFileSync(file(), "utf8")) as Partial<Shape>;
-    cache = { ...EMPTY, ...parsed, mailAccounts: Array.isArray(parsed.mailAccounts) ? parsed.mailAccounts : [], prefs: sanitizePrefs({ ...DEFAULT_PREFS, ...(parsed.prefs ?? {}) }), secrets: parsed.secrets ?? {} };
+    cache = { ...EMPTY, ...parsed, mailAccounts: Array.isArray(parsed.mailAccounts) ? parsed.mailAccounts : [], prefs: sanitizePrefs({ ...DEFAULT_PREFS, ...(parsed.prefs ?? {}) }), secrets: parsed.secrets ?? {}, sync: { ...EMPTY.sync, ...(parsed.sync ?? {}) } };
   } catch {
     cache = structuredClone(EMPTY);
   }
@@ -182,6 +186,12 @@ export const store = {
   setUnlockedVersion(value: string | null) {
     update((shape) => {
       shape.unlockedVersion = value;
+    });
+  },
+  sync: () => load().sync,
+  setSync(patch: Partial<SyncState>) {
+    update((shape) => {
+      shape.sync = { ...shape.sync, ...patch };
     });
   },
   trayHintShown: () => load().trayHintShown,

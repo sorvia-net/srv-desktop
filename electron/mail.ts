@@ -13,6 +13,7 @@ import type { ApiResult, MailAccountInfo, MailDraft, MailFolder, MailFolderId, M
 import { MAIL_HOST, version } from "./config";
 import { addresses, cleanHtml, decodeText, decodeTransfer, EMAIL, previewText, safeName } from "./mail-content";
 import { canEncrypt, store } from "./store";
+import { sync } from "./sync";
 
 const PAGE = 40;
 const ROLE: Record<string, MailFolderId> = { "\\Inbox": "INBOX", "\\Sent": "Sent", "\\Drafts": "Drafts", "\\Archive": "Archive", "\\Trash": "Trash", "\\Junk": "Junk" };
@@ -323,6 +324,15 @@ export const mail = {
     const active = activeAccount();
     return store.mailAccounts().map((item) => describeAccount(item, item.id === active?.id));
   },
+  /** Eşitleme hesap listesini değiştirdiğinde bağlantıyı yeniden kurar. */
+  async reload() {
+    await mail.stop();
+    attachmentCache.clear();
+    folderCache = null;
+    lastError = null;
+    mail.start();
+    events.emit("switched");
+  },
   async switchAccount(id: unknown) {
     const target = store.mailAccounts().find((item) => item.id === id);
     if (!target) return mail.info();
@@ -330,6 +340,7 @@ export const mail = {
     attachmentCache.clear();
     lastError = null;
     store.setMailAccounts(store.mailAccounts(), target.id);
+    sync.mailActivated(target.id);
     mail.start();
     events.emit("switched");
     return mail.info();
@@ -355,6 +366,7 @@ export const mail = {
       const entry = { id, address, name: String(value.name ?? "").trim().slice(0, 120) || existing?.name || address };
       store.setSecret(`mail:${id}`, password);
       store.setMailAccounts(existing ? list.map((item) => (item.id === id ? entry : item)) : [...list, entry], id);
+      sync.mailAdded(entry, true);
       lastError = null;
       mail.start();
       return mail.info()!;
@@ -371,6 +383,7 @@ export const mail = {
       lastError = null;
     }
     store.setSecret(`mail:${target.id}`, null);
+    sync.mailRemoved(target.id);
     const rest = list.filter((item) => item.id !== target.id);
     store.setMailAccounts(rest, removingActive ? (rest[0]?.id ?? null) : (active?.id ?? null));
     if (removingActive && rest.length) mail.start();
