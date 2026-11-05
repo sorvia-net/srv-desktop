@@ -37,7 +37,7 @@ export const previewUser: DesktopUser = {
   roleLabel: "Destek",
   title: "Müşteri Destek Uzmanı",
   permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view", "media.view", "media.upload", "media.delete", "users.view", "orders.view"],
-  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status", "products", "admin", "founder", "games"],
+  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status", "products", "admin", "founder", "assistant", "games"],
   timeZone: "Europe/Istanbul",
   memberSince: at(-410, 9),
 };

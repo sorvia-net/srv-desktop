@@ -36,6 +36,9 @@ const bridge: SorviaBridge = {
     get: (path, query) => ipcRenderer.invoke("api:get", path, query),
     send: (method, path, body) => ipcRenderer.invoke("api:send", method, path, body),
     upload: (path, bytes, name, voice) => ipcRenderer.invoke("api:upload", path, bytes, name, voice),
+    stream: (id, path, body) => ipcRenderer.invoke("api:stream", id, path, body),
+    abort: (id) => ipcRenderer.invoke("api:abort", id),
+    onStream: (listener) => listen("api:stream", listener),
   },
   mail: {
     account: () => ipcRenderer.invoke("mail:account"),

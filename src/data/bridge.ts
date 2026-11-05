@@ -75,6 +75,9 @@ function webBridge(): SorviaBridge {
       get: async <T,>() => unavailable<T>(),
       send: async <T,>() => unavailable<T>(),
       upload: async <T,>() => unavailable<T>(),
+      stream: async () => unavailable(),
+      abort: async () => undefined,
+      onStream: () => () => undefined,
     },
     mail: {
       account: async () => null,

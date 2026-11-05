@@ -271,6 +271,7 @@ function Desktop({ onConnect }: { onConnect: () => void }) {
       else if (action === "lock") run(() => system.lock());
       else if (action === "refresh") run(() => invalidate(""));
       else if (action === "mail" && apps.has("mail")) run(() => { layer.close(); system.openApp("mail"); });
+      else if (action === "assistant" && apps.has("assistant")) run(() => { layer.close(); system.openApp("assistant"); });
       else if (action === "nextAccount") run(() => void nextMailAccount(current));
       else if (ctrl && /^[1-9]$/.test(event.key)) {
         const target = shortcuts[Number(event.key) - 1];

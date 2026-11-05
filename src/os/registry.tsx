@@ -118,6 +118,11 @@ const APP_LIST: AppDef[] = [
     features: ["Aylık ve yıllık finans", "Vergi takvimi", "Ödemeler ve evraklar"],
   },
   {
+    kind: "app", id: "assistant", title: "Asistan", subtitle: "Sorvia yapay zekâsı", category: "Yönetim", icon: Sparkles, tile: "radial-gradient(circle at 30% 25%,#f0abfc 0%,#8b5cf6 40%,#2563eb 75%,#0f172a 100%)", role: "OWNER", system: true, version: "1.0", size: "0,3 MB",
+    description: "Şirketi bilen yapay zekâ asistanı: defter, ödemeler, vergi takvimi, site metrikleri ve bilgi bankası. Webde arar, işlem önerir; sen onaylamadan hiçbir şey uygulanmaz.",
+    features: ["9Router ile canlı yanıt", "Araç kullanımı ve web araması", "Onaylı işlem önerileri"],
+  },
+  {
     kind: "app", id: "games", title: "Oyunlar", subtitle: "Ekiple yarış", category: "Eğlence", icon: Gamepad2, tile: "linear-gradient(160deg,#f0abfc 0%,#c026d3 55%,#86198f 100%)", version: "1.0", size: "1,1 MB",
     description: "Mayın Tarlası, Solitaire, Blackjack, Yılan ve 2048. En iyi skorlar ekip sıralamasına girer.",
     features: ["5 oyun", "Ekip sıralaması", "Skorlar sunucuda saklanır"],

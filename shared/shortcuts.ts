@@ -11,6 +11,7 @@ export const SHORTCUT_ACTIONS = [
   { id: "lock", label: "Ekranı kilitle", fallback: "Ctrl+L" },
   { id: "refresh", label: "Yenile", fallback: "F5" },
   { id: "mail", label: "Posta", fallback: "Ctrl+Shift+M" },
+  { id: "assistant", label: "Asistan", fallback: "Ctrl+Space" },
   { id: "nextAccount", label: "Sonraki posta hesabı", fallback: "Ctrl+Shift+A" },
   { id: "global", label: "Sorvia'yı her yerden aç (Windows geneli)", fallback: "Ctrl+Shift+Space" },
 ] as const;

@@ -1,5 +1,5 @@
 import type {
-  DriveSpace, AdminOrderDetail, AdminOrderPage, AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
+  AssistantOverview, AssistantThread, DriveSpace, AdminOrderDetail, AdminOrderPage, AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, AdminUserDetail, AdminUserPage, StatusBoard, VoiceJoin, VoiceSync,
   ApiResult, AppNotification, CalendarEvent, ChatAttachment, ChatChannel, ChatMessage, DriveView, HomeSummary, MailAccountInfo, MailFolder, MailMessage, MailSummary, MediaItem, MediaPage, Priority, StorageOverview, StoreCatalog, Task,
   TicketDetail, TicketSummary,
 } from "@shared/contracts";
@@ -93,6 +93,10 @@ export const adminApi = {
   updateProduct: (id: string, patch: { status?: string; featured?: boolean; price?: number; salePrice?: number | null }) => send<ProductDetail>("PATCH", `/api/desktop/products/${id}`, patch, () => preview.product(id)),
   overview: () => get<AdminOverview>("/api/desktop/overview", undefined, () => preview.overview()),
   founder: () => get<FounderOverview>("/api/desktop/founder", undefined, () => preview.founder()),
+  assistant: () => get<AssistantOverview>("/api/desktop/assistant", undefined, () => ({ conversations: [], pending: [] })),
+  assistantThread: (id: string) => get<AssistantThread>(`/api/desktop/assistant/${id}`, undefined, () => null),
+  archiveAssistant: (id: string) => send<{ ok: true }>("DELETE", `/api/desktop/assistant/${id}`, undefined, () => ({ ok: true })),
+  decideAction: (id: string, decision: "approve" | "reject") => send<{ message: string }>("POST", `/api/desktop/assistant/actions/${id}`, { decision }, () => ({ message: "Önizleme" })),
 };
 
 export const gamesApi = {

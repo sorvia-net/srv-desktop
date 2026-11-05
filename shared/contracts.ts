@@ -1,7 +1,7 @@
 import type { Accent, Density, IconSize, NotificationSound, ToastPosition, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "games" | `app-${string}`;
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "assistant" | "games" | `app-${string}`;
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
@@ -347,6 +347,10 @@ export type SorviaBridge = {
     get<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<ApiResult<T>>;
     upload<T>(path: string, bytes: Uint8Array, name: string, voice?: boolean): Promise<ApiResult<T>>;
     send<T>(method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<ApiResult<T>>;
+    /** Sunucu olay akışı (SSE); olaylar onStream ile aynı id'yle gelir, söz akış bitince çözülür. */
+    stream(id: string, path: string, body: unknown): Promise<ApiResult<{ ok: true }>>;
+    abort(id: string): Promise<void>;
+    onStream(listener: (payload: { id: string; event: AssistantEvent }) => void): () => void;
   };
   mail: {
     account(): Promise<MailAccountInfo | null>;
@@ -457,3 +461,17 @@ export type FounderOverview = {
 };
 export type GameId = "solitaire" | "minesweeper" | "blackjack" | "snake" | "game2048";
 export type Leaderboard = { game: GameId; title: string; lowerIsBetter: boolean; board: { userId: string; name: string; avatarUrl: string | null; best: number; plays: number; me: boolean; rank: number }[]; recent: { score: number; createdAt: string; name: string }[] };
+
+export type AssistantEvent =
+  | { type: "meta"; conversationId: string; model: string }
+  | { type: "delta"; text: string }
+  | { type: "replace"; text: string }
+  | { type: "tool"; name?: string; label?: string; status?: string; [key: string]: unknown }
+  | { type: "done"; tokensIn: number; tokensOut: number }
+  | { type: "error"; message: string };
+
+export type AssistantConversation = { id: string; title: string; pinned: boolean; updatedAt: string };
+export type AssistantAction = { id: string; kind: string; label: string; summary: string; conversationId: string | null; createdAt: string };
+export type AssistantOverview = { conversations: AssistantConversation[]; pending: AssistantAction[] };
+export type AssistantMessage = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
+export type AssistantThread = { id: string; title: string; messages: AssistantMessage[] };

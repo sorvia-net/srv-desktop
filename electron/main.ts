@@ -6,7 +6,7 @@ import { extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Preferences } from "../shared/contracts";
-import { request } from "./api";
+import { abortStream, request, streamRequest } from "./api";
 import { auth, setLinkOpener } from "./auth";
 import { badgeImage } from "./badge";
 import { APP_ORIGIN, DEV_URL, IS_DEV, SERVER, userAgent } from "./config";
@@ -670,6 +670,12 @@ function registerIpc() {
   handle("api:get", (path, query) => request("GET", path, query));
   handle("api:send", (method, path, body) => request(method, path, undefined, body));
   handle("api:upload", (path, bytes, name, voice) => uploadRequest(path, bytes, name, voice));
+  ipcMain.handle("api:stream", (event, id, path, body) => {
+    if (!trusted(event)) throw new Error("Yetkisiz istek.");
+    const sender = event.sender;
+    return streamRequest((payload) => { if (!sender.isDestroyed()) sender.send("api:stream", payload); }, id, path, body);
+  });
+  handle("api:abort", (id) => abortStream(id));
 
   handle("mail:account", () => mail.info());
   handle("mail:accounts", () => mail.accounts());

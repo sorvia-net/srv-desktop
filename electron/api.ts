@@ -1,4 +1,7 @@
 import type { ApiResult } from "../shared/contracts";
+import { net } from "electron";
+
+import { SERVER, userAgent } from "./config";
 import { auth } from "./auth";
 import { call } from "./http";
 
@@ -34,4 +37,67 @@ export async function request<T>(method: unknown, path: unknown, query?: unknown
     return fail(result.status, result.error, result.message);
   }
   return { ok: true, data: result.payload as T };
+}
+
+const STREAM_PATHS = new Set(["/api/desktop/assistant"]);
+const streams = new Map<string, AbortController>();
+
+/**
+ * Sunucu olaylarını (SSE) satır satır okuyup `api:stream` kanalına iletir.
+ * Yalnızca beyaz listedeki uçlar; belirteç ana süreçte kalır.
+ */
+export async function streamRequest(emit: (payload: unknown) => void, id: unknown, path: unknown, body: unknown): Promise<ApiResult<{ ok: true }>> {
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]{6,64}$/.test(id)) return fail(400, "bad_request", "Geçersiz istek.");
+  if (typeof path !== "string" || !STREAM_PATHS.has(path)) return fail(400, "bad_request", "Geçersiz istek.");
+  if (JSON.stringify(body ?? null).length > MAX_BODY) return fail(413, "too_large", "Gönderilen içerik çok büyük.");
+  const token = auth.token();
+  if (!token) return fail(401, "unauthorized", "Oturum açık değil.");
+
+  const controller = new AbortController();
+  streams.set(id, controller);
+  try {
+    const response = await net.fetch(new URL(path, `${SERVER}/`).toString(), {
+      method: "POST",
+      headers: { Accept: "text/event-stream", "Content-Type": "application/json", Authorization: `Bearer ${token}`, "User-Agent": userAgent(), "X-Sorvia-Client": "desktop" },
+      body: JSON.stringify(body ?? {}),
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) {
+      if (response.status === 401) auth.expire();
+      const payload = (await response.json().catch(() => ({}))) as { message?: unknown; error?: unknown };
+      const message = typeof payload.message === "string" ? payload.message : typeof payload.error === "string" ? payload.error : `Sunucu hatası (${response.status}).`;
+      return fail(response.status, "http_error", message);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let index: number;
+      while ((index = buffer.indexOf("\n\n")) >= 0) {
+        const chunk = buffer.slice(0, index);
+        buffer = buffer.slice(index + 2);
+        const data = chunk.split("\n").filter((line) => line.startsWith("data: ")).map((line) => line.slice(6)).join("\n");
+        if (!data) continue;
+        try {
+          emit({ id, event: JSON.parse(data) });
+        } catch {
+          /* bozuk satır atlanır */
+        }
+      }
+    }
+    return { ok: true, data: { ok: true } };
+  } catch (error) {
+    if ((error as Error).name === "AbortError") return { ok: true, data: { ok: true } };
+    return fail(0, "network", "Sorvia'ya ulaşılamadı. İnternet bağlantını kontrol et.");
+  } finally {
+    streams.delete(id);
+  }
+}
+
+export function abortStream(id: unknown) {
+  if (typeof id === "string") streams.get(id)?.abort();
 }

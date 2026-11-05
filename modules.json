@@ -13,6 +13,7 @@
   "products": { "file": "src/screens/Products.tsx", "export": "Products", "title": "Ürünler" },
   "admin": { "file": "src/screens/Admin.tsx", "export": "Admin", "title": "Yönetim" },
   "founder": { "file": "src/screens/Founder.tsx", "export": "Founder", "title": "Kurucu paneli" },
+  "assistant": { "file": "src/screens/Assistant.tsx", "export": "Assistant", "title": "Asistan" },
   "games": { "file": "src/screens/Games.tsx", "export": "Games", "title": "Oyunlar" },
   "store": { "file": "src/screens/Store.tsx", "export": "Store", "title": "Mağaza" },
   "settings": { "file": "src/screens/Settings.tsx", "export": "Settings", "title": "Ayarlar" },
