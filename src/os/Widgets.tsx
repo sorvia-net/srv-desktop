@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, ChevronUp, HardDrive, ListChecks, Mail, Minus, Plus } from "lucide-react";
+import { Bell, GripVertical, HardDrive, ListChecks, Mail, Minus, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
@@ -56,6 +56,9 @@ export function Widgets() {
   const home = useQuery<HomeSummary>("home", () => api.home(), { refreshMs: 60_000 });
   const storage = useQuery<StorageOverview>("storage:overview", () => filesApi.overview(), { refreshMs: 300_000 });
   const [picker, setPicker] = useState(false);
+  /** Sürüklenirken geçici sıra: bırakınca kaydedilir, iptal edilirse eski sıra döner. */
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string[] | null>(null);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 15_000);
@@ -72,15 +75,21 @@ export function Widgets() {
   const used = disk ? disk.total - disk.free : (storage.data?.categories ?? []).reduce((sum, item) => sum + item.bytes, 0);
   const ratio = disk ? used / disk.total : 0;
   const open = (id: ModuleId) => os.openApp(installed.has(id) ? id : "store", installed.has(id) ? undefined : { module: id });
-  const list = (session.prefs.widgets ?? DEFAULT_WIDGETS).filter((id) => WIDGETS.some((widget) => widget.id === id));
+  const saved = (session.prefs.widgets ?? DEFAULT_WIDGETS).filter((id) => WIDGETS.some((widget) => widget.id === id));
+  const list = preview ?? saved;
   const save = (next: string[]) => session.setPrefs({ widgets: next });
-  const move = (id: string, step: number) => {
-    const next = [...list];
-    const index = next.indexOf(id);
-    const target = index + step;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target]!, next[index]!];
-    save(next);
+  /** Sürüklenen widget'ı imlecin olduğu widget'ın önüne ya da arkasına yerleştirir. */
+  const hover = (target: string, after: boolean) => {
+    if (!dragging || dragging === target) return;
+    const next = list.filter((id) => id !== dragging);
+    const index = next.indexOf(target) + (after ? 1 : 0);
+    next.splice(index, 0, dragging);
+    if (next.join() !== list.join()) setPreview(next);
+  };
+  const drop = () => {
+    if (preview && preview.join() !== saved.join()) save(preview);
+    setDragging(null);
+    setPreview(null);
   };
 
   const body = (id: string) => {
@@ -195,28 +204,51 @@ export function Widgets() {
   };
 
   const sizeOf = (id: string) => WIDGETS.find((widget) => widget.id === id)!.size;
-  const groups: string[][] = [];
+  // Küçük widget'lar ikili satırlara dizilir; tek kalan küçük widget da yarım genişlikte durur (tam satırı kaplayıp devleşmez).
+  const groups: { ids: string[]; small: boolean }[] = [];
   for (const id of list) {
     const last = groups.at(-1);
-    if (sizeOf(id) === "small" && last && last.length === 1 && sizeOf(last[0]!) === "small") last.push(id);
-    else groups.push([id]);
+    if (sizeOf(id) === "small" && last?.small && last.ids.length === 1) last.ids.push(id);
+    else groups.push({ ids: [id], small: sizeOf(id) === "small" });
   }
 
   const render = (id: string) => {
     const meta = WIDGETS.find((widget) => widget.id === id)!;
     return (
-      <div key={id} className="relative">
-        <Card onClick={() => !os.editing && meta.app && open(meta.app)} className={cn(meta.size === "small" && "aspect-square")}>
+      <motion.div key={id} layout transition={{ type: "spring", stiffness: 500, damping: 40 }}>
+      <div
+        draggable={os.editing}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", id);
+          setDragging(id);
+        }}
+        onDragOver={(event) => {
+          if (!dragging) return;
+          event.preventDefault();
+          const box = event.currentTarget.getBoundingClientRect();
+          // Küçükler yan yana: yatay yarıya, genişler alt alta: dikey yarıya bakılır.
+          const after = meta.size === "small" ? event.clientX > box.left + box.width / 2 : event.clientY > box.top + box.height / 2;
+          hover(id, after);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          drop();
+        }}
+        onDragEnd={drop}
+        className={cn("relative", os.editing && "cursor-grab active:cursor-grabbing", dragging === id && "opacity-40")}
+      >
+        <Card onClick={() => !os.editing && meta.app && open(meta.app)} className={cn(meta.size === "small" && "aspect-square", os.editing && "pointer-events-none")}>
           {body(id)}
         </Card>
         {os.editing && (
-          <div className="absolute -right-2 -top-2 flex gap-1">
-            <button onClick={() => move(id, -1)} aria-label="Yukarı taşı" className="flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"><ChevronUp className="size-3.5" /></button>
-            <button onClick={() => move(id, 1)} aria-label="Aşağı taşı" className="flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"><ChevronDown className="size-3.5" /></button>
-            <button onClick={() => save(list.filter((item) => item !== id))} aria-label="Kaldır" className="flex size-6 items-center justify-center rounded-full bg-[#ff453a] text-white"><Minus className="size-3.5" /></button>
-          </div>
+          <>
+            <span className="pointer-events-none absolute -left-2 -top-2 flex size-6 items-center justify-center rounded-full bg-black/70 text-white/90 ring-1 ring-white/15"><GripVertical className="size-3.5" /></span>
+            <button onClick={() => save(saved.filter((item) => item !== id))} aria-label="Kaldır" className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-[#ff453a] text-white"><Minus className="size-3.5" /></button>
+          </>
         )}
       </div>
+      </motion.div>
     );
   };
 
@@ -224,7 +256,8 @@ export function Widgets() {
   return (
     <aside className="scroll-area -mx-3 -mt-3 hidden w-[354px] shrink-0 flex-col gap-4 px-3 pb-3 pt-3 xl:flex">
       <NowPlayingCard compact />
-      {groups.map((group) => (group.length === 2 ? <div key={group.join("-")} className="grid grid-cols-2 gap-4">{group.map(render)}</div> : render(group[0]!)))}
+      {groups.map((group) => (group.small ? <div key={group.ids.join("-")} className="grid grid-cols-2 gap-4">{group.ids.map(render)}</div> : render(group.ids[0]!)))}
+      {os.editing && list.length > 1 && <p className="-mt-1 text-center text-[11.5px] text-white/55">Sıralamak için widget'ları sürükle</p>}
       {list.length === 0 && !os.editing && <p className="px-2 text-[12.5px] text-white/60">Widget eklemek için ana ekranda boş bir yere sağ tıkla.</p>}
       {os.editing && (
         <div>
