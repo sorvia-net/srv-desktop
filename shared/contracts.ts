@@ -471,7 +471,7 @@ export type AssistantEvent =
   | { type: "error"; message: string };
 
 export type AssistantConversation = { id: string; title: string; pinned: boolean; updatedAt: string };
-export type AssistantAction = { id: string; kind: string; label: string; summary: string; conversationId: string | null; createdAt: string };
+export type AssistantAction = { id: string; kind: string; label: string; summary: string; fields?: [string, string][]; conversationId: string | null; createdAt: string };
 export type AssistantOverview = { conversations: AssistantConversation[]; pending: AssistantAction[] };
 export type AssistantMessage = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 export type AssistantThread = { id: string; title: string; messages: AssistantMessage[] };

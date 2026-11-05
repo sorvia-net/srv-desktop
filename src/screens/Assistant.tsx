@@ -1,4 +1,4 @@
-import { ArrowUp, Check, CircleStop, Globe, MessageSquarePlus, Search, Sparkles, Trash2, Wrench, X } from "lucide-react";
+import { ArrowUp, Check, CircleStop, FileText, Globe, ImagePlus, MessageSquarePlus, Paperclip, Search, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -12,7 +12,49 @@ import { ask } from "@/shell/ask";
 import { useSession } from "@/shell/context";
 
 type Tool = { id: string; label: string; status: string };
-type Turn = { id: string; role: "user" | "assistant"; content: string; tools?: Tool[]; error?: string };
+type Attachment = { name: string; mimeType?: string; preview?: string };
+type Turn = { id: string; role: "user" | "assistant"; content: string; tools?: Tool[]; error?: string; files?: Attachment[] };
+type Pending = { id: string; name: string; mimeType: string; size: number; data: string; preview?: string };
+
+const MAX_FILES = 6;
+const MAX_TOTAL = 25 * 1024 * 1024;
+const ATTACH_MARK = "\n\n[Ekler]\n";
+
+/** Sunucu ekleri mesajın sonuna "[Ekler]" listesi olarak yazar; balonda çip olarak gösterilir. */
+function splitAttachments(content: string): { text: string; files: Attachment[] } {
+  const index = content.lastIndexOf(ATTACH_MARK);
+  if (index < 0) return { text: content, files: [] };
+  const files = content
+    .slice(index + ATTACH_MARK.length)
+    .split("\n")
+    .map((line) => /^- (.+?) \(([^,]+),/.exec(line))
+    .filter((match): match is RegExpExecArray => Boolean(match))
+    .map((match) => ({ name: match[1]!, mimeType: match[2] }));
+  return { text: content.slice(0, index), files };
+}
+
+function readFile(file: File): Promise<Pending> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`${file.name} okunamadı.`));
+    reader.onload = () => {
+      const url = String(reader.result);
+      const mimeType = file.type || "application/octet-stream";
+      resolve({ id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 7)}`, name: file.name || "dosya", mimeType, size: file.size, data: url.slice(url.indexOf(",") + 1), preview: mimeType.startsWith("image/") ? url : undefined });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function FileChip({ file, onRemove }: { file: Attachment; onRemove?: () => void }) {
+  return (
+    <span className="inline-flex max-w-[220px] items-center gap-2 rounded-xl border border-white/12 bg-black/20 py-1 pl-1 pr-2 text-[12px] text-ink-2">
+      {file.preview ? <img src={file.preview} alt="" className="size-8 rounded-lg object-cover" /> : <span className="flex size-8 items-center justify-center rounded-lg bg-white/10">{file.mimeType?.startsWith("image/") ? <ImagePlus className="size-4" /> : <FileText className="size-4" />}</span>}
+      <span className="truncate">{file.name}</span>
+      {onRemove && <button type="button" aria-label="Kaldır" onClick={onRemove} className="rounded-md p-0.5 text-ink-4 hover:bg-white/10 hover:text-ink"><X className="size-3.5" /></button>}
+    </span>
+  );
+}
 
 const SUGGESTIONS = [
   "Bu ayın finans özetini çıkar",
@@ -126,6 +168,9 @@ export function Assistant() {
   const [busy, setBusy] = useState<null | "thinking" | "speaking">(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [filter, setFilter] = useState("");
+  const [files, setFiles] = useState<Pending[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
   const streamId = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -164,15 +209,40 @@ export function Assistant() {
     } else if (event.type === "error") patchLast((turn) => ({ ...turn, error: event.message }));
   }
 
+  async function addFiles(list: FileList | File[]) {
+    const incoming = [...list];
+    if (!incoming.length) return;
+    if (files.length + incoming.length > MAX_FILES) return session.toast(`En fazla ${MAX_FILES} dosya eklenebilir.`, "bad");
+    const total = files.reduce((sum, file) => sum + file.size, 0) + incoming.reduce((sum, file) => sum + file.size, 0);
+    if (total > MAX_TOTAL) return session.toast("Ekler toplam 25 MB'ı geçemez.", "bad");
+    try {
+      const read = await Promise.all(incoming.map(readFile));
+      setFiles((current) => [...current, ...read]);
+      field.current?.focus();
+    } catch (error) {
+      session.toast((error as Error).message, "bad");
+    }
+  }
+
   async function sendMessage(text: string) {
     const message = text.trim();
-    if (!message || busy) return;
+    if ((!message && files.length === 0) || busy) return;
+    const attached = files;
     setInput("");
+    setFiles([]);
     const id = `as${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     streamId.current = id;
-    setTurns((list) => [...list, { id: `u-${id}`, role: "user", content: message }, { id: `a-${id}`, role: "assistant", content: "" }]);
+    setTurns((list) => [
+      ...list,
+      { id: `u-${id}`, role: "user", content: message, files: attached.map(({ name, mimeType, preview }) => ({ name, mimeType, preview })) },
+      { id: `a-${id}`, role: "assistant", content: "" },
+    ]);
     setBusy("thinking");
-    const result = await bridge.api.stream(id, "/api/desktop/assistant", { conversationId, message });
+    const result = await bridge.api.stream(id, "/api/desktop/assistant", {
+      conversationId,
+      message,
+      files: attached.length ? attached.map(({ name, mimeType, data }) => ({ name, mimeType, data })) : undefined,
+    });
     if (!result.ok) patchLast((turn) => ({ ...turn, error: result.message }));
     setBusy(null);
     streamId.current = null;
@@ -190,7 +260,11 @@ export function Assistant() {
     setLoadingThread(false);
     if (!result.ok) return session.toast(result.message, "bad");
     setConversationId(result.data.id);
-    setTurns(result.data.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })));
+    setTurns(result.data.messages.map((m) => {
+      if (m.role !== "user") return { id: m.id, role: m.role, content: m.content };
+      const parts = splitAttachments(m.content);
+      return { id: m.id, role: m.role, content: parts.text, files: parts.files };
+    }));
   }
 
   function newChat() {
@@ -198,6 +272,7 @@ export function Assistant() {
     setConversationId(null);
     setTurns([]);
     setInput("");
+    setFiles([]);
   }
 
   async function remove(id: string, title: string) {
@@ -238,7 +313,17 @@ export function Assistant() {
         </div>
       </aside>
 
-      <section className="relative flex min-w-0 flex-1 flex-col">
+      <section
+        className="relative flex min-w-0 flex-1 flex-col"
+        onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragging(true); } }}
+        onDragLeave={(event) => { if (event.currentTarget === event.target) setDragging(false); }}
+        onDrop={(event) => { event.preventDefault(); setDragging(false); void addFiles(event.dataTransfer.files); }}
+      >
+        {dragging && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[26px] border-2 border-dashed border-[#8b5cf6]/70 bg-[#8b5cf6]/10 text-[15px] font-semibold text-ink">
+            Dosyaları bırak: görselleri ve PDF'leri okurum, hepsini e-postaya ekleyebilirim
+          </div>
+        )}
         {pending.length > 0 && <PendingBar actions={pending} />}
 
         <div ref={scroller} className="scroll-area fade-bottom -mr-3 flex-1 pr-3">
@@ -248,7 +333,7 @@ export function Assistant() {
             <div className="flex h-full flex-col items-center justify-center text-center">
               <Orb state={orbState} size={140} />
               <h1 className="mt-6 text-[30px] font-bold tracking-[-0.03em] text-ink">{firstName ? `Merhaba ${firstName}, ` : ""}nasıl yardımcı olayım?</h1>
-              <p className="mt-2 max-w-md text-[14px] text-ink-3">Defteri, ödemeleri, vergi takvimini, site metriklerini ve bilgi bankasını biliyorum. Webde arayabilir, işlem önerebilirim; sen onaylamadan hiçbir şey uygulanmaz.</p>
+              <p className="mt-2 max-w-md text-[14px] text-ink-3">Defteri, ödemeleri, vergi takvimini, site metriklerini ve bilgi bankasını biliyorum. Görsel ve PDF okuyabilir, webde arayabilir; e-posta, kayıt, görev ve hatırlatma hazırlayabilirim. Sen onaylamadan hiçbir şey gönderilmez ya da uygulanmaz.</p>
               <div className="mt-7 grid w-full max-w-2xl grid-cols-2 gap-2.5">
                 {SUGGESTIONS.map((text) => (
                   <button key={text} type="button" onClick={() => void sendMessage(text)} className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-left text-[13.5px] text-ink-2 transition hover:border-white/20 hover:bg-white/[0.09] hover:text-ink">
@@ -262,8 +347,13 @@ export function Assistant() {
               {turns.map((turn, index) => (
                 <Fragment key={turn.id}>
                   {turn.role === "user" ? (
-                    <div className="flex justify-end">
-                      <div className="max-w-[80%] whitespace-pre-wrap rounded-[20px] rounded-br-md bg-gradient-to-br from-[#8b5cf6] to-[#2563eb] px-4 py-2.5 text-[14px] text-white shadow-lg">{turn.content}</div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      {turn.files && turn.files.length > 0 && (
+                        <div className="flex max-w-[80%] flex-wrap justify-end gap-1.5">
+                          {turn.files.map((file, i) => file.preview ? <img key={i} src={file.preview} alt={file.name} className="max-h-48 max-w-[260px] rounded-2xl border border-white/10 object-cover" /> : <FileChip key={i} file={file} />)}
+                        </div>
+                      )}
+                      {turn.content && <div className="max-w-[80%] whitespace-pre-wrap rounded-[20px] rounded-br-md bg-gradient-to-br from-[#8b5cf6] to-[#2563eb] px-4 py-2.5 text-[14px] text-white shadow-lg">{turn.content}</div>}
                     </div>
                   ) : (
                     <div className="flex gap-3">
@@ -292,25 +382,39 @@ export function Assistant() {
 
         <form
           onSubmit={(event) => { event.preventDefault(); void sendMessage(input); }}
-          className="mx-auto mt-3 flex w-full max-w-3xl items-end gap-2 rounded-[24px] border border-white/12 bg-white/[0.07] p-2 pl-4 shadow-[0_10px_40px_-10px_rgba(139,92,246,.45)] focus-within:border-[#8b5cf6]/60"
+          className="mx-auto mt-3 w-full max-w-3xl rounded-[24px] border border-white/12 bg-white/[0.07] p-2 shadow-[0_10px_40px_-10px_rgba(139,92,246,.45)] focus-within:border-[#8b5cf6]/60"
         >
-          <Sparkles className="mb-2.5 size-4 shrink-0 text-[#c4b5fd]" />
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-1 pb-2">
+              {files.map((file) => <FileChip key={file.id} file={file} onRemove={() => setFiles((current) => current.filter((item) => item.id !== file.id))} />)}
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+          <input ref={picker} type="file" multiple hidden onChange={(event) => { if (event.target.files) void addFiles(event.target.files); event.target.value = ""; }} />
+          <button type="button" aria-label="Dosya ekle" title="Dosya ya da görsel ekle" onClick={() => picker.current?.click()} disabled={Boolean(busy)} className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-white/10 hover:text-ink disabled:opacity-40">
+            <Paperclip className="size-[18px]" />
+          </button>
           <textarea
             ref={field}
             value={input}
             rows={1}
             onChange={(event) => setInput(event.target.value)}
+            onPaste={(event) => {
+              const pasted = [...event.clipboardData.files];
+              if (pasted.length) { event.preventDefault(); void addFiles(pasted); }
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(input); }
             }}
-            placeholder="Asistana sor…  (Enter gönderir, Shift+Enter yeni satır)"
+            placeholder="Sor ya da iş ver: “Bu faturayı muhasebeye mail at”"
             className="max-h-40 min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[14px] text-ink outline-none placeholder:text-ink-4 [field-sizing:content]"
           />
           {busy ? (
             <button type="button" onClick={stop} aria-label="Durdur" className="flex size-9 items-center justify-center rounded-full bg-white/15 text-ink hover:bg-white/25"><CircleStop className="size-4" /></button>
           ) : (
-            <button type="submit" disabled={!input.trim()} aria-label="Gönder" className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#2563eb] text-white disabled:opacity-40"><ArrowUp className="size-4" /></button>
+            <button type="submit" disabled={!input.trim() && files.length === 0} aria-label="Gönder" className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#2563eb] text-white disabled:opacity-40"><ArrowUp className="size-4" /></button>
           )}
+          </div>
         </form>
       </section>
     </div>
@@ -341,10 +445,20 @@ function PendingBar({ actions }: { actions: AssistantAction[] }) {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="mt-2 space-y-2">
               {actions.map((action) => (
-                <div key={action.id} className="flex items-center gap-3 rounded-2xl bg-white/[0.05] px-4 py-3">
+                <div key={action.id} className="flex items-start gap-3 rounded-2xl bg-white/[0.05] px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-[12px] text-ink-4">{action.label}</div>
                     <div className="text-[13.5px] text-ink">{action.summary}</div>
+                    {action.fields && action.fields.length > 0 && (
+                      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12.5px]">
+                        {action.fields.map(([label, value]) => (
+                          <Fragment key={label}>
+                            <dt className="text-ink-4">{label}</dt>
+                            <dd className="whitespace-pre-wrap break-words text-ink-2">{value}</dd>
+                          </Fragment>
+                        ))}
+                      </dl>
+                    )}
                   </div>
                   <Button size="sm" variant="ghost" disabled={working === action.id} onClick={() => void decide(action.id, "reject")}><X className="size-4" /> Reddet</Button>
                   <Button size="sm" variant="accent" loading={working === action.id} onClick={() => void decide(action.id, "approve")}><Check className="size-4" /> Onayla</Button>

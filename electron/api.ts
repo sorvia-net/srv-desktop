@@ -40,6 +40,8 @@ export async function request<T>(method: unknown, path: unknown, query?: unknown
 }
 
 const STREAM_PATHS = new Set(["/api/desktop/assistant"]);
+/** Asistana eklenen dosyalar base64 olarak gövdede gider (toplam 25 MB ham). */
+const MAX_STREAM_BODY = 36 * 1024 * 1024;
 const streams = new Map<string, AbortController>();
 
 /**
@@ -49,7 +51,7 @@ const streams = new Map<string, AbortController>();
 export async function streamRequest(emit: (payload: unknown) => void, id: unknown, path: unknown, body: unknown): Promise<ApiResult<{ ok: true }>> {
   if (typeof id !== "string" || !/^[A-Za-z0-9_-]{6,64}$/.test(id)) return fail(400, "bad_request", "Geçersiz istek.");
   if (typeof path !== "string" || !STREAM_PATHS.has(path)) return fail(400, "bad_request", "Geçersiz istek.");
-  if (JSON.stringify(body ?? null).length > MAX_BODY) return fail(413, "too_large", "Gönderilen içerik çok büyük.");
+  if (JSON.stringify(body ?? null).length > MAX_STREAM_BODY) return fail(413, "too_large", "Ekler çok büyük (toplam 25 MB).");
   const token = auth.token();
   if (!token) return fail(401, "unauthorized", "Oturum açık değil.");
 
