@@ -11,6 +11,7 @@ import { SERVER, userAgent } from "./config";
 type Job = { transfer: Transfer; run: (job: Job) => Promise<void>; abort: AbortController };
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif)$/i;
+const SOCIAL = /\.(png|jpe?g|mp4|mov)$/i;
 const MAX_UPLOAD = 4 * 1024 * 1024 * 1024;
 
 const jobs: Job[] = [];
@@ -216,6 +217,30 @@ export const files = {
           }
           const media = await api<{ id: string }>("POST", `/api/desktop/uploads/${started.id}/complete`, undefined, undefined, job.abort.signal);
           update(job, { resultId: media.id });
+        } catch (error) {
+          await api("DELETE", `/api/desktop/uploads/${started.id}`).catch(() => undefined);
+          throw error;
+        }
+      }),
+    );
+    return { ok: true, data: ids };
+  },
+
+  async uploadSocial(paths: unknown): Promise<ApiResult<string[]>> {
+    if (!auth.token()) return fail("Oturum açık değil.", 401);
+    const list = await checkedPaths(paths, false);
+    if (!list || list.some((file) => !SOCIAL.test(file.path))) return fail("Instagram için JPG/PNG görsel ya da MP4/MOV video seçin.");
+    const ids = list.map((file) =>
+      enqueue("upload", "social", basename(file.path), file.size, file.path, async (job) => {
+        const started = await api<{ id: string; chunkSize: number }>("POST", "/api/desktop/uploads", { name: basename(file.path), size: file.size, purpose: "social" }, undefined, job.abort.signal);
+        try {
+          for (let offset = 0; offset < file.size; offset += started.chunkSize) {
+            const chunk = await readSlice(file.path, offset, Math.min(started.chunkSize, file.size - offset));
+            await api("PUT", `/api/desktop/uploads/${started.id}?offset=${offset}`, undefined, chunk, job.abort.signal);
+            update(job, { done: offset + chunk.length });
+          }
+          const done = await api<{ id: string }>("POST", `/api/desktop/uploads/${started.id}/complete`, undefined, undefined, job.abort.signal);
+          update(job, { resultId: done.id });
         } catch (error) {
           await api("DELETE", `/api/desktop/uploads/${started.id}`).catch(() => undefined);
           throw error;

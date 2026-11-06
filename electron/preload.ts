@@ -127,6 +127,7 @@ const bridge: SorviaBridge = {
       }
     },
     uploadMedia: (paths, options) => ipcRenderer.invoke("files:uploadMedia", paths, options),
+    uploadSocial: (paths) => ipcRenderer.invoke("files:uploadSocial", paths),
     uploadDrive: (paths, options) => ipcRenderer.invoke("files:uploadDrive", paths, options),
     downloadDrive: (file, options) => ipcRenderer.invoke("files:downloadDrive", file, options),
     downloadMedia: (item, options) => ipcRenderer.invoke("files:downloadMedia", item, options),

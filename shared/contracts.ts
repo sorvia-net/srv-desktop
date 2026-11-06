@@ -1,7 +1,7 @@
 import type { Accent, Density, IconSize, NotificationSound, ToastPosition, UiStyle, Wallpaper } from "./appearance";
 export type Role = "DEVELOPER" | "SUPPORT" | "MODERATOR" | "ADMIN" | "OWNER";
 
-export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "assistant" | "games" | `app-${string}`;
+export type ModuleId = "home" | "tasks" | "calendar" | "tickets" | "mail" | "chat" | "gallery" | "storage" | "store" | "settings" | "web" | "users" | "orders" | "status" | "products" | "admin" | "founder" | "assistant" | "social" | "games" | `app-${string}`;
 
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
@@ -310,7 +310,7 @@ export type TransferStatus = "queued" | "running" | "done" | "failed" | "cancell
 export type Transfer = {
   id: string;
   kind: "upload" | "download";
-  target: "media" | "drive";
+  target: "media" | "drive" | "social";
   name: string;
   size: number;
   done: number;
@@ -431,6 +431,8 @@ export type SorviaBridge = {
     pick(options: { multiple: boolean; images: boolean }): Promise<string[]>;
     pathFor(file: File): string;
     uploadMedia(paths: string[], options: { folder: string | null }): Promise<ApiResult<string[]>>;
+    /** Instagram için görsel/video yükler; aktarım bitince resultId = /media/social/... yolu. */
+    uploadSocial(paths: string[]): Promise<ApiResult<string[]>>;
     uploadDrive(paths: string[], options: { folderId: string | null; space?: DriveSpace }): Promise<ApiResult<string[]>>;
     downloadDrive(file: { id: string; name: string; size: number }, options: { ask: boolean; open: boolean; space?: DriveSpace }): Promise<ApiResult<string | null>>;
     downloadMedia(item: { url: string; fileName: string; size: number }, options: { ask: boolean }): Promise<ApiResult<string | null>>;
@@ -488,3 +490,67 @@ export type AssistantAction = { id: string; kind: string; label: string; summary
 export type AssistantOverview = { conversations: AssistantConversation[]; pending: AssistantAction[] };
 export type AssistantMessage = { id: string; role: "user" | "assistant"; content: string; createdAt: string };
 export type AssistantThread = { id: string; title: string; messages: AssistantMessage[] };
+
+/* ---------- Sosyal medya (Instagram) ---------- */
+
+export type SocialPostType = "IMAGE" | "CAROUSEL" | "REEL" | "STORY";
+export type SocialPostStatus = "DRAFT" | "PENDING" | "NEEDS_MEDIA" | "SCHEDULED" | "PUBLISHING" | "PUBLISHED" | "FAILED" | "REJECTED";
+export type SocialMedia = { url: string; kind: "image" | "video"; key?: string; width?: number; height?: number };
+export type SocialCard = { template: string; kicker?: string; title: string; subtitle?: string; bullets?: string[]; badge?: string; footer?: string };
+export type SocialPost = {
+  id: string;
+  type: SocialPostType;
+  status: SocialPostStatus;
+  pillar: string | null;
+  hook: string | null;
+  caption: string;
+  hashtags: string[];
+  media: SocialMedia[];
+  design: { card?: SocialCard; slides?: SocialCard[] } | null;
+  brief: string | null;
+  aiNotes: string | null;
+  source: string;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  permalink: string | null;
+  error: string | null;
+  metrics: Record<string, number | string> | null;
+  attempts: number;
+  createdAt: string;
+  approvedAt: string | null;
+  problem: string | null;
+};
+export type SocialPrefs = {
+  postsPerWeek: number;
+  reelsPerWeek: number;
+  storiesPerWeek: number;
+  voice: string;
+  pillars: string[];
+  autoPlan: boolean;
+  autoPlanDay: number;
+  quietStart: number;
+  quietEnd: number;
+  minGapHours: number;
+};
+export type SocialOverview = {
+  account: {
+    appId: string | null;
+    appSecretSet: boolean;
+    connected: boolean;
+    username: string | null;
+    name: string | null;
+    avatarUrl: string | null;
+    followers: number | null;
+    mediaCount: number | null;
+    tokenExpiresAt: string | null;
+    syncedAt: string | null;
+    lastError: string | null;
+    redirectUri: string;
+  };
+  prefs: SocialPrefs;
+  queue: SocialPost[];
+  published: SocialPost[];
+  daily: { day: string; followers: number; mediaCount: number; reach: number | null; views: number | null }[];
+  heat: { heat: number[][]; alpha: number; samples: number };
+  counts: Record<string, number>;
+};

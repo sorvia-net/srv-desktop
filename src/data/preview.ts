@@ -1,3 +1,4 @@
+import type { SocialOverview } from "@shared/contracts";
 import type {
   AdminOverview, ChatPerson, FounderOverview, GameId, Leaderboard, ProductDetail, ProductPage, ProductRow,
   AdminOrderDetail, AdminOrderPage, AdminOrderRow, AdminUserDetail, AdminUserPage, AdminUserRow, StatusBoard,
@@ -37,7 +38,7 @@ export const previewUser: DesktopUser = {
   roleLabel: "Destek",
   title: "Müşteri Destek Uzmanı",
   permissions: ["dashboard.view", "tickets.view", "tickets.reply", "chat.use", "meetings.view", "content.view", "media.view", "media.upload", "media.delete", "users.view", "orders.view"],
-  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status", "products", "admin", "founder", "assistant", "games"],
+  modules: ["home", "tasks", "calendar", "tickets", "mail", "chat", "gallery", "storage", "settings", "users", "orders", "status", "products", "admin", "founder", "assistant", "social", "games"],
   timeZone: "Europe/Istanbul",
   memberSince: at(-410, 9),
 };
@@ -324,7 +325,25 @@ const PEOPLE: ChatPerson[] = [
 const BOARD_NAMES = ["Barış Aydın", "Ece Yıldız", "Deniz Arslan", "Mert Kaya", "Selin Acar"];
 const scores: Record<string, number[]> = {};
 
+function previewSocial(): SocialOverview {
+  const at = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const heat = Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => (h >= 20 && h < 22 ? 1 : h >= 19 && h < 23 ? 0.75 : h >= 12 && h < 17 ? (d === 0 || d === 6 ? 0.65 : 0.35) : 0.08)));
+  return {
+    account: { appId: "1234567890", appSecretSet: true, connected: true, username: "sorvianet", name: "Sorvia", avatarUrl: null, followers: 10, mediaCount: 3, tokenExpiresAt: at(24 * 50), syncedAt: at(-1), lastError: null, redirectUri: "https://sorvia.net/api/social/instagram/callback" },
+    prefs: { postsPerWeek: 4, reelsPerWeek: 2, storiesPerWeek: 0, voice: "Samimi, kısa ve net.", pillars: ["Ürün tanıtımı", "Sürüm notları", "İpuçları", "İşe alım"], autoPlan: false, autoPlanDay: 1, quietStart: 1, quietEnd: 9, minGapHours: 20 },
+    queue: [
+      { id: "p1", type: "IMAGE", status: "PENDING", pillar: "Sürüm notları", hook: "Widget'lar artık sürükle-bırak", caption: "Sorvia Desktop 0.9.24 çıktı.\nAna ekrandaki widget'ları artık sürükleyerek sıralayabilirsin.\n\nSen en çok hangisini kullanıyorsun?", hashtags: ["sorvia", "minecraftsunucu", "discordbot"], media: [], design: null, brief: null, aiNotes: "Sürüm haberi kaydetme getirir. Saat: 100/100 puanlı dilim.", source: "ai", scheduledAt: at(26), publishedAt: null, permalink: null, error: null, metrics: null, attempts: 0, createdAt: at(-2), approvedAt: null, problem: null },
+      { id: "p2", type: "REEL", status: "NEEDS_MEDIA", pillar: "İşe alım", hook: "Saat neredeyse üç, sen hâlâ Minecraft oynuyorsun", caption: "Ekibimize yapı ustası, piksel sanatçısı ve video kurgucusu arıyoruz.\nBaşvuru: sorvia.net/kariyer", hashtags: ["minecraft", "isilani", "sorvia"], media: [], design: null, brief: "0-3 sn: gece 02:47 kancası\n3-6 sn: soru\n6-30 sn: üç pozisyon", aiNotes: null, source: "ai", scheduledAt: at(50), publishedAt: null, permalink: null, error: null, metrics: null, attempts: 0, createdAt: at(-2), approvedAt: null, problem: "Reels için video yüklenmeli." },
+    ],
+    published: [],
+    daily: Array.from({ length: 14 }, (_, i) => ({ day: new Date(Date.now() - (13 - i) * 86_400_000).toISOString().slice(0, 10), followers: 4 + Math.round(i / 2), mediaCount: 3, reach: 20 + i * 3, views: 40 + i * 5 })),
+    heat: { heat, alpha: 0, samples: 0 },
+    counts: { PENDING: 1, NEEDS_MEDIA: 1 },
+  };
+}
+
 export const preview = {
+  social: previewSocial,
   home(): HomeSummary {
     const open = tasks.filter((item) => item.status !== "done");
     const today = new Date().toDateString();

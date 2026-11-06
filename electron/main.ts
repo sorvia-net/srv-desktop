@@ -650,6 +650,7 @@ function registerIpc() {
   files.init({ emit: (transfer) => send("files:transfer", transfer), window: () => win });
   handle("files:pick", (options) => files.pick(options));
   handle("files:uploadMedia", (paths, options) => files.uploadMedia(paths, options));
+  handle("files:uploadSocial", (paths) => files.uploadSocial(paths));
   handle("files:uploadDrive", (paths, options) => files.uploadDrive(paths, options));
   handle("files:downloadDrive", (file, options) => files.downloadDrive(file, options));
   handle("files:downloadMedia", (item, options) => files.downloadMedia(item, options));

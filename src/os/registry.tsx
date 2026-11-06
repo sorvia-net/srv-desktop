@@ -1,7 +1,7 @@
 import {
   Disc3, Gamepad2, Headphones, MessageCircle, Music, Send,
   Activity, BookOpen, Bot, CalendarDays, ChartColumn, Code2, Cpu, CreditCard, Crown, FileText, FolderOpen, Globe, Images, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, Megaphone, MessagesSquare, Package, Server, Settings, Shield,
-  ShoppingBag, ShoppingCart, Sparkles, Store, Ticket, UserRound, Users, Wrench,
+  ShoppingBag, ShoppingCart, Sparkles, Store, Ticket, UserRound, Users, Wrench, Camera as Instagram,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -121,6 +121,11 @@ const APP_LIST: AppDef[] = [
     kind: "app", id: "assistant", title: "Asistan", subtitle: "Sorvia yapay zekâsı", category: "Yönetim", icon: Sparkles, tile: "radial-gradient(circle at 30% 25%,#f0abfc 0%,#8b5cf6 40%,#2563eb 75%,#0f172a 100%)", role: "OWNER", system: true, version: "1.0", size: "0,3 MB",
     description: "Şirketi bilen yapay zekâ asistanı: defter, ödemeler, vergi takvimi, site metrikleri ve bilgi bankası. Webde arar, işlem önerir; sen onaylamadan hiçbir şey uygulanmaz.",
     features: ["9Router ile canlı yanıt", "Araç kullanımı ve web araması", "Onaylı işlem önerileri"],
+  },
+  {
+    kind: "app", id: "social", title: "Sosyal", subtitle: "Instagram yönetimi", category: "Yönetim", icon: Instagram, tile: "radial-gradient(circle at 30% 110%,#fdf497 0%,#fd5949 45%,#d6249f 62%,#285AEB 95%)", folder: "folder-admin", role: "OWNER", version: "1.0", size: "0,4 MB",
+    description: "Claude haftalık Instagram planı hazırlar, marka şablonlu görselleri çizer ve en iyi saatleri seçer. Sen onaylarsın, zamanı gelince kendiliğinden yayınlanır; erişim ve etkileşim burada izlenir.",
+    features: ["Claude ile haftalık plan", "Onay kuyruğu ve zamanlama", "En iyi saat ısı haritası", "Reels video yükleme", "Takipçi ve gönderi analizi"],
   },
   {
     kind: "app", id: "games", title: "Oyunlar", subtitle: "Ekiple yarış", category: "Eğlence", icon: Gamepad2, tile: "linear-gradient(160deg,#f0abfc 0%,#c026d3 55%,#86198f 100%)", version: "1.0", size: "1,1 MB",

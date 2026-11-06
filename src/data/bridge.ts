@@ -165,6 +165,7 @@ function webBridge(): SorviaBridge {
       pick: async () => [],
       pathFor: () => "",
       uploadMedia: async () => unavailable(),
+      uploadSocial: async () => unavailable(),
       uploadDrive: async () => unavailable(),
       downloadDrive: async () => unavailable(),
       downloadMedia: async () => unavailable(),

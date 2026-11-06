@@ -17,6 +17,7 @@ import { Store } from "@/screens/Store";
 import { Tasks } from "@/screens/Tasks";
 import { Admin } from "@/screens/Admin";
 import { Founder } from "@/screens/Founder";
+import { Social } from "@/screens/Social";
 import { Assistant } from "@/screens/Assistant";
 import { Games } from "@/screens/Games";
 import { Orders } from "@/screens/Orders";
@@ -51,6 +52,7 @@ const SCREENS: Partial<Record<ModuleId, ComponentType>> = {
   products: Products,
   admin: Admin,
   founder: Founder,
+  social: Social,
   assistant: Assistant,
   games: Games,
   settings: Settings,

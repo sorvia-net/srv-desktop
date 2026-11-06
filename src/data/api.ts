@@ -4,6 +4,8 @@ import type {
   TicketDetail, TicketSummary,
 } from "@shared/contracts";
 
+import type { SocialOverview, SocialPost, SocialPrefs } from "@shared/contracts";
+
 import { bridge } from "./bridge";
 import { preview, previewUser } from "./preview";
 
@@ -159,4 +161,24 @@ export const mailApi = {
     const messages = preview.mailList("INBOX").messages.filter((item) => item.flagged);
     return ok({ total: messages.length, messages });
   },
+};
+
+type SocialPostAction =
+  | { action: "approve"; scheduledAt?: string | null }
+  | { action: "publish-now" | "reject" | "unschedule" | "delete" }
+  | { action: "rewrite"; instruction: string }
+  | { action: "rerender"; design?: SocialPost["design"] }
+  | { action: "update"; caption?: string; hook?: string; hashtags?: string[]; scheduledAt?: string | null; media?: SocialPost["media"]; type?: SocialPost["type"] };
+
+/** Instagram yönetimi (yalnız kurucular). Önizleme modunda boş hesap gösterir. */
+export const socialApi = {
+  overview: () => get<SocialOverview>("/api/desktop/social", undefined, () => preview.social()),
+  saveApp: (appId: string, appSecret?: string) => send<{ saved: boolean }>("POST", "/api/desktop/social", { action: "save-app", appId, appSecret }, () => ({ saved: true })),
+  connectUrl: () => send<{ url: string }>("POST", "/api/desktop/social", { action: "connect-url" }, () => null),
+  disconnect: () => send<{ disconnected: boolean }>("POST", "/api/desktop/social", { action: "disconnect" }, () => ({ disconnected: true })),
+  sync: () => send<{ synced: boolean }>("POST", "/api/desktop/social", { action: "sync" }, () => ({ synced: true })),
+  savePrefs: (prefs: Partial<SocialPrefs>) => send<SocialPrefs>("POST", "/api/desktop/social", { action: "save-prefs", prefs }, () => null),
+  generate: (input: { count?: number; theme?: string }) => send<{ created: number }>("POST", "/api/desktop/social", { action: "generate", ...input }, () => null),
+  create: (type: SocialPost["type"]) => send<{ id: string }>("POST", "/api/desktop/social", { action: "create", type }, () => null),
+  post: (id: string, body: SocialPostAction) => send<SocialPost>("POST", `/api/desktop/social/posts/${id}`, body, () => null),
 };
